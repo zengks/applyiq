@@ -11,6 +11,14 @@ export interface Application {
   notes: string;
 }
 
+/** Cost metadata attached to an analysis response by the server (not the model). */
+export interface AnalysisCost {
+  model: string;
+  costUsd: number;
+  monthSpendUsd: number;
+  softLimitAlert: boolean;
+}
+
 export interface AIResult {
   matchScore: number;
   role: string;
@@ -24,6 +32,8 @@ export interface AIResult {
   industry: string;
   seniority: string;
   culture: string[];
+  /** Populated server-side by the cost tracker; absent before the migration is run. */
+  cost?: AnalysisCost;
 }
 
 export interface Resume {

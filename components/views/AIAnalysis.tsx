@@ -28,13 +28,13 @@ export default function AIAnalysis() {
   const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 9, border: `1px solid ${t.inputBorder}`, background: t.inputBg, color: t.p, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const };
 
   async function handleAnalyze() {
-    if (!jobDescription.trim()) return;
+    if (!jobUrl.trim()) return;
     dispatch({ type: 'AI_START' });
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobDescription, resumeText }),
+        body: JSON.stringify({ jobUrl, jobDescription, resumeText }),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status})`);
@@ -60,7 +60,7 @@ export default function AIAnalysis() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>AI Analysis</h1>
-          <p style={{ fontSize: 14, color: t.s, margin: '6px 0 0' }}>Paste a job description to get your match score, cover letter, interview prep, and more.</p>
+          <p style={{ fontSize: 14, color: t.s, margin: '6px 0 0' }}>Drop in a job posting URL — AI reads the page and returns your match score, cover letter, interview prep, and more.</p>
         </div>
         {analysisShown && (
           <button onClick={() => dispatch({ type: 'AI_RESET' })} style={{ padding: '9px 16px', background: 'transparent', border: `1px solid ${t.d}`, borderRadius: 9, fontSize: 13, fontWeight: 600, cursor: 'pointer', color: t.s, fontFamily: 'inherit' }}>
@@ -73,11 +73,11 @@ export default function AIAnalysis() {
       {!analysisShown && (
         <div style={cardStyle}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 16 }}>
-            <input style={inputStyle} placeholder="Job posting URL (optional, for tracking)" value={jobUrl} onChange={e => dispatch({ type: 'SET_JOB_URL', value: e.target.value })} />
+            <input style={inputStyle} placeholder="Job posting URL (required) — AI reads the page for you" value={jobUrl} onChange={e => dispatch({ type: 'SET_JOB_URL', value: e.target.value })} />
             <button
               onClick={handleAnalyze}
-              disabled={aiLoading || !jobDescription.trim()}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: aiLoading || !jobDescription.trim() ? '#e5e7eb' : '#ec4899', color: aiLoading || !jobDescription.trim() ? '#9ca3af' : '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: aiLoading || !jobDescription.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}
+              disabled={aiLoading || !jobUrl.trim()}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: aiLoading || !jobUrl.trim() ? '#e5e7eb' : '#ec4899', color: aiLoading || !jobUrl.trim() ? '#9ca3af' : '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: aiLoading || !jobUrl.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}
             >
               {aiLoading ? (
                 <>
@@ -96,7 +96,7 @@ export default function AIAnalysis() {
           </div>
           <textarea
             style={{ ...inputStyle, minHeight: 200, resize: 'vertical', lineHeight: 1.6 }}
-            placeholder="Paste the full job description here..."
+            placeholder="Optional: paste the job description here as a fallback if the page can't be auto-read."
             value={jobDescription}
             onChange={e => dispatch({ type: 'SET_JOB_DESC', value: e.target.value })}
           />
@@ -147,6 +147,11 @@ export default function AIAnalysis() {
             <div style={{ fontSize: 12, fontWeight: 600, color: t.m, marginTop: 8, textAlign: 'center' }}>Match Score</div>
             {aiResult.role && <div style={{ fontSize: 13, fontWeight: 700, color: t.p, marginTop: 8, textAlign: 'center' }}>{aiResult.role}</div>}
             {aiResult.company && <div style={{ fontSize: 12, color: t.m, textAlign: 'center' }}>{aiResult.company}</div>}
+            {aiResult.cost && (
+              <div style={{ fontSize: 10, color: t.m, textAlign: 'center', marginTop: 8 }} title={`${aiResult.cost.model} · $${aiResult.cost.monthSpendUsd.toFixed(2)} this month`}>
+                Cost: ${aiResult.cost.costUsd.toFixed(4)}
+              </div>
+            )}
             <button
               onClick={() => dispatch({ type: 'SAVE_AI_TO_BOARD' })}
               style={{ width: '100%', marginTop: 16, padding: '9px', background: t.inner, color: t.p, border: `1px solid ${t.d}`, borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -256,7 +261,7 @@ export default function AIAnalysis() {
       )}
 
       {/* Empty state */}
-      {!analysisShown && !aiLoading && !aiError && !jobDescription && (
+      {!analysisShown && !aiLoading && !aiError && !jobUrl && (
         <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 60, gap: 14 }}>
           <div style={{ width: 56, height: 56, borderRadius: 16, background: '#fce7f3', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -264,7 +269,7 @@ export default function AIAnalysis() {
             </svg>
           </div>
           <div style={{ fontSize: 16, fontWeight: 700, color: t.p }}>Ready to analyze</div>
-          <div style={{ fontSize: 14, color: t.s, textAlign: 'center', maxWidth: 360 }}>Paste a job description above and click &quot;Analyze with AI&quot; to get your personalized match report.</div>
+          <div style={{ fontSize: 14, color: t.s, textAlign: 'center', maxWidth: 360 }}>Paste a job posting URL above and click &quot;Analyze with AI&quot; — it reads the page and builds your personalized match report.</div>
         </div>
       )}
     </div>
