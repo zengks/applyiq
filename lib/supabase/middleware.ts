@@ -45,9 +45,13 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Signed-in users shouldn't sit on the auth screens — send them into the app
-  // instead of back to the landing page (which would make the CTAs look dead).
-  if (user && (pathname.startsWith('/login') || pathname.startsWith('/register'))) {
+  // Signed-in users shouldn't sit on the marketing or auth screens — send them
+  // straight into the app. (Without this, the landing CTAs bounce back to `/`
+  // and look dead, and logged-in users keep seeing the marketing page.)
+  if (
+    user &&
+    (pathname === '/' || pathname.startsWith('/login') || pathname.startsWith('/register'))
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);

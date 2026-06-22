@@ -12,6 +12,7 @@ export interface State {
   loading: boolean;
   darkMode: boolean;
   activeView: ActiveView;
+  email: string;
   profileName: string;
   profileTitle: string;
   resumeText: string;
@@ -37,6 +38,7 @@ export interface State {
 }
 
 interface HydratePayload {
+  email: string;
   profileName: string;
   profileTitle: string;
   resumeText: string;
@@ -87,6 +89,7 @@ export const INITIAL: State = {
   loading: true,
   darkMode: false,
   activeView: 'dashboard',
+  email: '',
   profileName: '',
   profileTitle: '',
   resumeText: '',
@@ -119,6 +122,7 @@ export function reducer(state: State, action: Action): State {
         ...state,
         loading: false,
         darkMode: p.darkMode,
+        email: p.email,
         profileName: p.profileName,
         profileTitle: p.profileTitle,
         resumeText: p.resumeText,
@@ -318,6 +322,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     rawDispatch({
       type: 'HYDRATE',
       payload: {
+        email: user.email ?? '',
         profileName: profile?.full_name ?? '',
         profileTitle: profile?.job_title ?? '',
         resumeText: profile?.resume_text ?? '',
@@ -373,7 +378,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
 function emptyHydrate(): HydratePayload {
   return {
-    profileName: '', profileTitle: '', resumeText: '', darkMode: false,
+    email: '', profileName: '', profileTitle: '', resumeText: '', darkMode: false,
     billingCycle: 'annual', onboarded: true, applications: [], resumes: [], subscription: null,
   };
 }

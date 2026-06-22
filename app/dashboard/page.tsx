@@ -12,6 +12,7 @@ import Applications from '@/components/views/Applications';
 import AIAnalysis from '@/components/views/AIAnalysis';
 import ResumeVault from '@/components/views/ResumeVault';
 import Analytics from '@/components/views/Analytics';
+import Profile from '@/components/views/Profile';
 
 function AppShell() {
   const { activeView, showOnboarding, darkMode, loading } = useStore();
@@ -30,6 +31,7 @@ function AppShell() {
     ai:           <AIAnalysis />,
     resume:       <ResumeVault />,
     stats:        <Analytics />,
+    profile:      <Profile />,
   };
 
   return (
