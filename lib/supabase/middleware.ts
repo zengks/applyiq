@@ -45,10 +45,11 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Signed-in users shouldn't sit on the auth screens.
+  // Signed-in users shouldn't sit on the auth screens — send them into the app
+  // instead of back to the landing page (which would make the CTAs look dead).
   if (user && (pathname.startsWith('/login') || pathname.startsWith('/register'))) {
     const url = request.nextUrl.clone();
-    url.pathname = '/';
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
