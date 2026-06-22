@@ -1,40 +1,57 @@
 'use client';
 
+import { useState } from 'react';
 import { useStore } from '@/lib/store';
 
-const PLANS = [
+type Tier = 'free' | 'pro' | 'team';
+
+interface PlanDef {
+  tier: Tier;
+  name: string;
+  priceMonthly: string;
+  priceAnnual: string;
+  features: string[];
+  highlight: boolean;
+  badge?: string;
+  /** Team has no Stripe price configured yet, so it can't be purchased. */
+  available: boolean;
+}
+
+const PLANS: PlanDef[] = [
   {
+    tier: 'free',
     name: 'Free Forever',
     priceMonthly: '$0',
     priceAnnual: '$0',
     features: ['5 applications', '1 resume', '3 AI analyses/month', 'Basic dashboard'],
-    cta: 'Current Plan',
-    disabled: true,
     highlight: false,
+    available: true,
   },
   {
+    tier: 'pro',
     name: 'Pro',
     priceMonthly: '$15/mo',
     priceAnnual: '$9/mo',
     features: ['Unlimited applications', '3 resume versions', 'Unlimited AI analyses', 'Cover letter generator', 'Interview prep', 'Salary insights'],
-    cta: 'Start Pro — Try Free',
-    disabled: false,
     highlight: true,
     badge: 'MOST POPULAR',
+    available: true,
   },
   {
+    tier: 'team',
     name: 'Team',
     priceMonthly: '$39/mo',
     priceAnnual: '$29/mo',
     features: ['Everything in Pro', '5 team seats', 'Shared resume vault', 'Team analytics', 'Priority support'],
-    cta: 'Start Team',
-    disabled: false,
     highlight: false,
+    available: false,
   },
 ];
 
 export default function PricingModal() {
-  const { showPricingModal, billingCycle, darkMode, dispatch } = useStore();
+  const { showPricingModal, billingCycle, darkMode, isPro, dispatch } = useStore();
+  const [loadingTier, setLoadingTier] = useState<Tier | null>(null);
+  const [error, setError] = useState('');
 
   if (!showPricingModal) return null;
 
@@ -47,8 +64,12 @@ export default function PricingModal() {
     inner: darkMode ? '#151413' : '#f9f7f5',
   };
 
-  async function selectPlan(plan: typeof PLANS[0]) {
-    if (plan.disabled) return;
+  // Only the Pro tier is purchasable today (Free is current, Team has no price yet).
+  // The monthly/annual toggle decides the actual Stripe price.
+  async function selectPlan(plan: PlanDef) {
+    if (plan.tier !== 'pro' || !plan.available || isPro || loadingTier) return;
+    setError('');
+    setLoadingTier(plan.tier);
     try {
       const res = await fetch('/api/stripe/checkout', {
         method: 'POST',
@@ -59,11 +80,21 @@ export default function PricingModal() {
       if (data.url) {
         window.location.assign(data.url); // → Stripe Checkout (hosted)
       } else {
-        console.error('Checkout error:', data.error);
+        setError(data.error || 'Could not start checkout. Please try again.');
+        setLoadingTier(null);
       }
-    } catch (err) {
-      console.error('Checkout request failed:', err);
+    } catch {
+      setError('Could not reach checkout. Please try again.');
+      setLoadingTier(null);
     }
+  }
+
+  function ctaFor(plan: PlanDef): { label: string; disabled: boolean } {
+    if (plan.tier === 'free') return { label: isPro ? 'Free plan' : 'Current Plan', disabled: true };
+    if (plan.tier === 'team') return { label: 'Coming soon', disabled: true };
+    if (isPro) return { label: '✓ Current Plan', disabled: true };
+    if (loadingTier === 'pro') return { label: 'Redirecting…', disabled: true };
+    return { label: 'Start Pro — Try Free', disabled: false };
   }
 
   return (
@@ -104,12 +135,15 @@ export default function PricingModal() {
 
         {/* Plans */}
         <div style={{ display: 'flex', gap: 16 }}>
-          {PLANS.map(plan => (
+          {PLANS.map(plan => {
+            const cta = ctaFor(plan);
+            const purchasable = plan.tier === 'pro' && !isPro;
+            return (
             <div key={plan.name} style={{
               flex: 1, borderRadius: 14, padding: '24px 22px', position: 'relative',
               border: plan.highlight ? '2px solid #ec4899' : `1px solid ${t.d}`,
               boxShadow: plan.highlight ? '0 8px 30px rgba(236,72,153,0.15)' : '0 1px 3px rgba(0,0,0,0.05)',
-              background: t.card,
+              background: t.card, opacity: plan.available ? 1 : 0.6,
             }}>
               {plan.badge && (
                 <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)', background: '#ec4899', color: '#fff', fontSize: 10, fontWeight: 800, padding: '4px 14px', borderRadius: 20, letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
@@ -142,19 +176,24 @@ export default function PricingModal() {
 
               <button
                 onClick={() => selectPlan(plan)}
-                disabled={plan.disabled}
+                disabled={cta.disabled}
                 style={{
                   width: '100%', padding: '11px', borderRadius: 9, border: 'none',
-                  fontSize: 14, fontWeight: 700, cursor: plan.disabled ? 'default' : 'pointer', fontFamily: 'inherit',
-                  background: plan.disabled ? t.inner : plan.highlight ? '#ec4899' : t.inner,
-                  color: plan.disabled ? t.m : plan.highlight ? '#fff' : t.p,
+                  fontSize: 14, fontWeight: 700, cursor: cta.disabled ? 'default' : 'pointer', fontFamily: 'inherit',
+                  background: cta.disabled ? t.inner : purchasable && plan.highlight ? '#ec4899' : t.inner,
+                  color: cta.disabled ? t.m : purchasable && plan.highlight ? '#fff' : t.p,
                 }}
               >
-                {plan.cta}
+                {cta.label}
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
+
+        {error && (
+          <div style={{ textAlign: 'center', marginTop: 18, fontSize: 13, fontWeight: 600, color: '#ef4444' }}>{error}</div>
+        )}
 
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: t.m }}>
           Cancel anytime · No hidden fees · All your data is preserved forever
