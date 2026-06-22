@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "seed:premium": "node --env-file=.env.local scripts/seed-premium.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",

@@ -5,7 +5,7 @@ import { Application } from '@/lib/types';
 import { getLogoColor, getInitial, STATUS_LABELS, STATUS_COLORS, getMatchColors, deadlineColor, formatDeadline, todayString, greetingPrefix } from '@/lib/utils';
 
 export default function Dashboard() {
-  const { applications, profileName, darkMode, dispatch } = useStore();
+  const { applications, profileName, darkMode, isPro, isTrialing, trialDaysLeft, dispatch } = useStore();
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -53,6 +53,9 @@ export default function Dashboard() {
           Analyze a Job
         </button>
       </div>
+
+      {/* Upgrade promo + sponsored links — only for non-Pro users */}
+      {!isPro && <UpgradePromo isTrialing={isTrialing} trialDaysLeft={trialDaysLeft} darkMode={darkMode} dispatch={dispatch} />}
 
       {/* Stats grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
@@ -191,6 +194,78 @@ function OfferCard({ count, darkMode }: { count: number; darkMode: boolean }) {
       </div>
       <div style={{ fontSize: 46, fontWeight: 800, lineHeight: 1, letterSpacing: '-2px', marginBottom: 5, color: numC, position: 'relative' }}>{count}</div>
       <div style={{ fontSize: 12, color: '#ec4899', fontWeight: 600, position: 'relative' }}>🎉 You&apos;re doing great!</div>
+    </div>
+  );
+}
+
+// Shown only to non-Pro users: an upgrade reminder plus a small strip of
+// sponsored external resources. Pro users see none of this.
+const SPONSORED = [
+  { label: 'LinkedIn Jobs', desc: 'Find roles that match your profile', url: 'https://www.linkedin.com/jobs/' },
+  { label: 'Levels.fyi', desc: 'Compare salaries before you negotiate', url: 'https://www.levels.fyi/' },
+  { label: 'Indeed', desc: 'Browse millions of open positions', url: 'https://www.indeed.com/' },
+];
+
+function UpgradePromo({ isTrialing, trialDaysLeft, darkMode, dispatch }: {
+  isTrialing: boolean; trialDaysLeft: number; darkMode: boolean; dispatch: ReturnType<typeof useStore>['dispatch'];
+}) {
+  const textM = darkMode ? '#8a8784' : '#9ca3af';
+  const cardBg = darkMode ? '#1c1b19' : '#ffffff';
+  const border = darkMode ? 'rgba(255,255,255,0.09)' : '#ede9e4';
+
+  const headline = isTrialing
+    ? `You have ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left on your free trial`
+    : 'Your free trial has ended';
+  const sub = isTrialing
+    ? 'Upgrade to Pro to keep unlimited AI analyses, cover letters, and interview prep after your trial.'
+    : 'Upgrade to Pro to unlock unlimited AI analyses, cover letters, interview prep, and salary insights.';
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* Upgrade banner */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 18, padding: '18px 22px', borderRadius: 14,
+        background: darkMode ? 'linear-gradient(135deg,#2d0a1e,#1a0d2e)' : 'linear-gradient(135deg,#fdf2f8,#f5f3ff)',
+        border: `1px solid ${darkMode ? 'rgba(236,72,153,0.25)' : '#fbcfe8'}`,
+      }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: 'linear-gradient(135deg,#ec4899,#8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: darkMode ? '#f0ede9' : '#1a1917', letterSpacing: '-0.3px' }}>{headline}</div>
+          <div style={{ fontSize: 13, color: darkMode ? '#b4bac4' : '#6b6864', marginTop: 3 }}>{sub}</div>
+        </div>
+        <button
+          onClick={() => dispatch({ type: 'OPEN_PRICING' })}
+          style={{ flexShrink: 0, padding: '10px 20px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }}
+        >
+          Upgrade to Pro →
+        </button>
+      </div>
+
+      {/* Sponsored resources */}
+      <div style={{ background: cardBg, borderRadius: 14, border: `1px solid ${border}`, padding: '14px 18px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: textM, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Resources for your search</span>
+          <span style={{ fontSize: 10, fontWeight: 700, color: textM, border: `1px solid ${border}`, borderRadius: 20, padding: '2px 8px' }}>Sponsored</span>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+          {SPONSORED.map(s => (
+            <a
+              key={s.label}
+              href={s.url}
+              target="_blank"
+              rel="noopener noreferrer sponsored"
+              style={{ display: 'block', padding: '12px 14px', borderRadius: 10, textDecoration: 'none', background: darkMode ? '#151413' : '#f9f7f5', border: `1px solid ${border}` }}
+            >
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#ec4899' }}>{s.label} ↗</div>
+              <div style={{ fontSize: 12, color: textM, marginTop: 2 }}>{s.desc}</div>
+            </a>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

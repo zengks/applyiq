@@ -1,7 +1,7 @@
 'use client';
 
 import { useStore } from '@/lib/store';
-import { BarChart, Bar, Cell, ResponsiveContainer, Tooltip, PieChart, Pie, Legend } from 'recharts';
+import { BarChart, Bar, Cell, ResponsiveContainer, Tooltip, PieChart, Pie } from 'recharts';
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const WEEK_DATA = [2, 4, 1, 6, 3, 0, 2];

@@ -11,7 +11,6 @@ export default function TrialBanner() {
     const bg = darkMode ? 'rgba(245,158,11,0.1)' : '#fffbeb';
     const borderB = darkMode ? 'rgba(245,158,11,0.2)' : '#fde68a';
     const textMain = darkMode ? '#fcd34d' : '#92400e';
-    const textSub = darkMode ? 'rgba(252,211,77,0.7)' : '#78350f';
     const iconBg = darkMode ? 'rgba(245,158,11,0.15)' : '#fef3c7';
 
     return (

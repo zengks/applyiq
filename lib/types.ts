@@ -49,7 +49,7 @@ export interface Subscription {
   priceId: string | null;
 }
 
-export type ActiveView = 'dashboard' | 'applications' | 'ai' | 'resume' | 'stats';
+export type ActiveView = 'dashboard' | 'applications' | 'ai' | 'resume' | 'stats' | 'profile';
 export type ActiveTab = 'keywords' | 'cover' | 'interview' | 'insights';
 export type BillingCycle = 'monthly' | 'annual';
 

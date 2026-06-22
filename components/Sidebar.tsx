@@ -37,10 +37,14 @@ const BarIcon = () => (
     <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
   </svg>
 );
-const SettingsIcon = () => (
+const UserIcon = () => (
   <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
+    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
+  </svg>
+);
+const LogoutIcon = () => (
+  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
   </svg>
 );
 const SunIcon = () => (
@@ -63,12 +67,44 @@ interface NavItemProps {
   label: string;
   view: ActiveView;
   badge?: React.ReactNode;
+  activeView: ActiveView;
+  darkMode: boolean;
+  onSelect: (view: ActiveView) => void;
+}
+
+function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: NavItemProps) {
+  const active = activeView === view;
+  const activeBg = darkMode ? 'rgba(236,72,153,0.15)' : '#fce7f3';
+  const activeTxt = darkMode ? '#f0ede9' : '#be185d';
+  const inactiveTxt = darkMode ? '#8a8784' : '#6b6864';
+
+  return (
+    <div
+      onClick={() => onSelect(view)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+        borderRadius: 7, cursor: 'pointer', fontSize: 13,
+        fontWeight: active ? 600 : 500,
+        background: active ? activeBg : 'transparent',
+        color: active ? activeTxt : inactiveTxt,
+        borderLeft: active ? '2px solid #ec4899' : '2px solid transparent',
+        marginBottom: 2,
+        transition: 'background 0.15s',
+      }}
+      onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}
+      onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+    >
+      {icon}
+      <span style={{ flex: 1 }}>{label}</span>
+      {badge}
+    </div>
+  );
 }
 
 export default function Sidebar() {
   const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, showTrialBanner, showExpiredBanner, dispatch } = useStore();
 
-  const nav = (view: ActiveView) => () => dispatch({ type: 'SET_VIEW', view });
+  const selectView = (view: ActiveView) => dispatch({ type: 'SET_VIEW', view });
 
   const sidebarBg = darkMode ? '#0a0908' : '#ffffff';
   const borderColor = darkMode ? 'rgba(255,255,255,0.09)' : '#ede9e4';
@@ -78,34 +114,8 @@ export default function Sidebar() {
   const initial = (profileName?.trim()?.[0] ?? 'U').toUpperCase();
   const trialPct = Math.round((trialDaysLeft / trialDaysTotal) * 100);
 
-  function NavItem({ icon, label, view, badge }: NavItemProps) {
-    const active = activeView === view;
-    const activeBg = darkMode ? 'rgba(236,72,153,0.15)' : '#fce7f3';
-    const activeTxt = darkMode ? '#f0ede9' : '#be185d';
-    const inactiveTxt = darkMode ? '#8a8784' : '#6b6864';
-
-    return (
-      <div
-        onClick={nav(view)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-          borderRadius: 7, cursor: 'pointer', fontSize: 13,
-          fontWeight: active ? 600 : 500,
-          background: active ? activeBg : 'transparent',
-          color: active ? activeTxt : inactiveTxt,
-          borderLeft: active ? '2px solid #ec4899' : '2px solid transparent',
-          marginBottom: 2,
-          transition: 'background 0.15s',
-        }}
-        onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}
-        onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-      >
-        {icon}
-        <span style={{ flex: 1 }}>{label}</span>
-        {badge}
-      </div>
-    );
-  }
+  // Shared props so the hoisted NavItem stays in sync with store state.
+  const navProps = { activeView, darkMode, onSelect: selectView };
 
   return (
     <aside style={{
@@ -127,33 +137,38 @@ export default function Sidebar() {
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '14px 10px', overflowY: 'auto' }}>
-        <NavItem icon={<DashIcon />} label="Dashboard" view="dashboard" />
-        <NavItem icon={<BriefcaseIcon />} label="Applications" view="applications"
+        <NavItem {...navProps} icon={<DashIcon />} label="Dashboard" view="dashboard" />
+        <NavItem {...navProps} icon={<BriefcaseIcon />} label="Applications" view="applications"
           badge={urgentCount > 0 ? (
             <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, minWidth: 18, textAlign: 'center' }}>{urgentCount}</span>
           ) : undefined}
         />
-        <NavItem icon={<AIIcon />} label="AI Analysis" view="ai"
+        <NavItem {...navProps} icon={<AIIcon />} label="AI Analysis" view="ai"
           badge={<span style={{ background: '#ec4899', color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, letterSpacing: '0.04em' }}>AI</span>}
         />
-        <NavItem icon={<FileIcon />} label="Resume Vault" view="resume" />
-        <NavItem icon={<BarIcon />} label="Analytics" view="stats" />
+        <NavItem {...navProps} icon={<FileIcon />} label="Resume Vault" view="resume" />
+        <NavItem {...navProps} icon={<BarIcon />} label="Analytics" view="stats" />
 
         <div style={{ height: 1, background: borderColor, margin: '10px 2px' }} />
 
-        <div
-          onClick={() => dispatch({ type: 'SET_ONBOARDING', step: 1 })}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-            borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 500,
-            color: darkMode ? '#8a8784' : '#6b6864', borderLeft: '2px solid transparent',
-          }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-        >
-          <SettingsIcon />
-          <span>Profile Setup</span>
-        </div>
+        <NavItem {...navProps} icon={<UserIcon />} label="Profile" view="profile" />
+
+        <form action="/auth/signout" method="post" style={{ margin: 0 }}>
+          <button
+            type="submit"
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+              borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 500, textAlign: 'left',
+              color: darkMode ? '#8a8784' : '#6b6864', border: 'none', borderLeft: '2px solid transparent',
+              background: 'transparent', fontFamily: 'inherit',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          >
+            <LogoutIcon />
+            <span>Sign out</span>
+          </button>
+        </form>
       </nav>
 
       {/* Trial / Pro widget */}
@@ -186,12 +201,18 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div style={{ padding: '14px 16px', borderTop: `1px solid ${borderColor}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#ec4899,#8b5cf6)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700 }}>
-          {initial}
-        </div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileName || 'Your Name'}</div>
-          <div style={{ fontSize: 11, color: textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileTitle || 'Job Seeker'}</div>
+        <div
+          onClick={() => selectView('profile')}
+          title="View profile"
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, cursor: 'pointer' }}
+        >
+          <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'linear-gradient(135deg,#ec4899,#8b5cf6)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700 }}>
+            {initial}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: textPrimary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileName || 'Your Name'}</div>
+            <div style={{ fontSize: 11, color: textMuted, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profileTitle || 'Job Seeker'}</div>
+          </div>
         </div>
         <button
           onClick={() => dispatch({ type: 'SET_DARK', value: !darkMode })}
