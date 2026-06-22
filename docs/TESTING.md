@@ -3,12 +3,15 @@
 A complete inventory of the unit tests this project needs.
 
 ## Status
-**Implemented (52 tests passing):** Vitest is set up (`npm test` / `npm run test:run`). Done so far:
+**Implemented (70 tests passing):** Vitest is set up (`npm test` / `npm run test:run`). Done so far:
 sections **1** (utils), **2** (reducer), **3** (deriveStoreValues), **4** (persistAction),
-**5** (parseAIResponse + analyze route), **7** (priceIdForPlan + mapStripeSubscription).
+**5** (parseAIResponse + analyze route — now URL-required + `web_fetch` + auth/401 + rate-limit/429 +
+fail-open + returned cost), **7** (priceIdForPlan + mapStripeSubscription),
+**11** (cost tracker — estimate / rate limits / logging / dashboard).
 Testability refactors applied: `reducer`/`INITIAL`/`State`/`Action`/`persistAction`/`deriveStoreValues`
 exported from `lib/store.tsx`; `parseAIResponse` → `lib/ai.ts`; `mapStripeSubscription` → `lib/stripe/sync.ts`.
-**Still TODO:** section **6** (resume parsing — needs `extractText` extraction), **8** (middleware),
+Section **8** (auth middleware) also covered (`test/middleware.test.ts`).
+**Still TODO:** section **6** (resume parsing — needs `extractText` extraction),
 **9** (components), **10** (provider integration).
 
 ## Setup (installed)
@@ -98,12 +101,12 @@ With a mocked Supabase client (assert `.from(table).insert/update/delete/upsert`
 - [ ] webhook: bad signature → 400; resolves `user_id` from metadata, else from customer lookup; handler error → 500.
 - [ ] portal route: unauthenticated → 401; no customer → 400; returns portal url.
 
-## 8. Auth middleware — `lib/supabase/middleware.ts`
-- [ ] unauthenticated + protected path → redirect `/login`.
-- [ ] unauthenticated + public path (`/`, `/login`, `/register`, `/auth/*`, `/api/stripe/webhook`) → passes through.
-- [ ] authenticated on `/login` or `/register` → redirect `/`.
-- [ ] authenticated on protected path → passes through.
-(Mock `createServerClient().auth.getUser()`.)
+## 8. Auth middleware — `lib/supabase/middleware.ts` (done — `test/middleware.test.ts`)
+- [x] unauthenticated + protected path → redirect `/login`.
+- [x] unauthenticated + public path (`/`, `/login`) → passes through.
+- [x] authenticated on `/`, `/login`, or `/register` → redirect `/dashboard`.
+- [x] authenticated on protected path → passes through.
+(Mocks `createServerClient().auth.getUser()`.)
 
 ## 9. Components (React Testing Library)
 - [ ] **LoginPage** — submit calls `signInWithPassword`; error renders; success navigates to `/dashboard` (mock supabase browser client + router).
@@ -121,6 +124,13 @@ With a mocked Supabase client (assert `.from(table).insert/update/delete/upsert`
 - [ ] `useStore` throws when used outside the provider.
 - [ ] dispatching a data action triggers both reducer update and a `persistAction` write (spy).
 - [ ] `?checkout=success` re-fetches the subscription after the delay (fake timers).
+
+## 11. `lib/costTracker.ts` — Claude API cost tracking (done — `test/costTracker.test.ts`)
+Supabase admin client stubbed with a chainable, thenable proxy that pops a queued result per awaited query.
+- [x] `costEstimate` — billing math per model (Sonnet/Haiku), default vs explicit output tokens, cheaper-model suggestion + savings, no-suggestion for heavy features.
+- [x] `enforceRateLimits` — passes under limits; throws `RateLimitError` at the 5/hour cap and the $50/month cap; propagates DB errors (so the route fails open).
+- [x] `logUsage` — cache-aware cost from `usage` (input/output + cache read 0.10×); returns `CostInfo`; `softLimitAlert` past $45/month.
+- [x] `getCostDashboard` — total YTD, spend-by-feature, top users (≤10), empty-table case + `spike_detected`.
 
 ---
 
