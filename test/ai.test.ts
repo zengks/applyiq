@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { parseAIResponse } from '@/lib/ai';
+import { parseAIResponse, normalizeJobUrl } from '@/lib/ai';
 
 const sample = {
   matchScore: 88, role: 'FE', company: 'Linear', matchedKeywords: ['react'], missingKeywords: ['go'],
@@ -24,6 +24,30 @@ describe('parseAIResponse', () => {
 
   it('throws when there is no JSON', () => {
     expect(() => parseAIResponse('no json here')).toThrow();
+  });
+});
+
+describe('normalizeJobUrl', () => {
+  it('strips Indeed tracking params but keeps the job key, shrinking the URL', () => {
+    const full = 'https://ca.indeed.com/viewjob?jk=248c853ce5d569d2&l=vancouver%2C+bc&tk=1jronkg8&from=web&ad=' + 'x'.repeat(700) + '&xkcb=abc&xpse=def&xfps=ghi&vjs=3';
+    const out = normalizeJobUrl(full);
+    expect(out).toContain('jk=248c853ce5d569d2');
+    expect(out).not.toContain('tk=');
+    expect(out).not.toContain('xkcb=');
+    expect(out).not.toMatch(/[?&]ad=/);
+    expect(out.length).toBeLessThan(120);
+    expect(full.length).toBeGreaterThan(700);
+  });
+
+  it('drops any param with a very long value (catch-all tracker)', () => {
+    const out = normalizeJobUrl('https://x.com/job?id=42&blob=' + 'y'.repeat(200));
+    expect(out).toContain('id=42');
+    expect(out).not.toContain('blob=');
+  });
+
+  it('leaves clean URLs and non-URLs unchanged', () => {
+    expect(normalizeJobUrl('https://jobs.lever.co/acme/123')).toBe('https://jobs.lever.co/acme/123');
+    expect(normalizeJobUrl('not a url')).toBe('not a url');
   });
 });
 
@@ -131,6 +155,29 @@ describe('POST /api/analyze', () => {
     const res = await POST(req({ jobUrl: 'https://jobs.example.com/1' }) as never);
     expect(res.status).toBe(200);
     expect(create).toHaveBeenCalledTimes(2);
+  });
+
+  const failedFetch = {
+    stop_reason: 'end_turn',
+    content: [
+      { type: 'web_fetch_tool_result', content: { type: 'web_fetch_tool_result_error', error_code: 'url_too_long' } },
+      { type: 'text', text: JSON.stringify(sample) }, // fabricated fallback
+    ],
+  };
+
+  it('returns 422 (and does not charge) when the fetch failed with no pasted fallback', async () => {
+    create.mockResolvedValue(failedFetch);
+    const res = await POST(req({ jobUrl: 'https://blocked.example.com/1' }) as never);
+    expect(res.status).toBe(422);
+    expect((await res.json()).error).toMatch(/block automated access/);
+    expect(logUsage).not.toHaveBeenCalled();
+  });
+
+  it('still analyzes when the fetch failed but a description was pasted', async () => {
+    create.mockResolvedValue(failedFetch);
+    const res = await POST(req({ jobUrl: 'https://blocked.example.com/1', jobDescription: 'pasted JD text' }) as never);
+    expect(res.status).toBe(200);
+    expect(logUsage).toHaveBeenCalled();
   });
 
   it('returns 422 when the response is truncated (max_tokens)', async () => {

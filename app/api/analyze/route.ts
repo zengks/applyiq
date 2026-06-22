@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
-import { parseAIResponse } from '@/lib/ai';
+import { parseAIResponse, normalizeJobUrl } from '@/lib/ai';
 import { createClient } from '@/lib/supabase/server';
 import { enforceRateLimits, logUsage, RateLimitError, type CostInfo } from '@/lib/costTracker';
 
@@ -40,13 +40,16 @@ export async function POST(req: NextRequest) {
   } catch {
     return NextResponse.json({ error: 'Please enter a valid http(s) job posting URL.' }, { status: 400 });
   }
+  // Strip tracking params so the URL doesn't exceed web_fetch's length limit
+  // (long job-board URLs otherwise fail with `url_too_long`).
+  const fetchUrl = normalizeJobUrl(url.toString());
 
   const resume = resumeText?.trim() || 'No resume provided — assess the role in general terms.';
   const pasted = jobDescription?.trim();
 
   const prompt = `You are a career coach AI. Use the web_fetch tool to open the job posting at the URL below and read its full contents, then analyze it against the candidate's background.
 
-JOB POSTING URL: ${url.toString()}
+JOB POSTING URL: ${fetchUrl}
 ${pasted ? `\nThe candidate also pasted this excerpt from the posting — use it to supplement what you fetch:\n${pasted}\n` : ''}
 CANDIDATE BACKGROUND:
 ${resume}
@@ -95,6 +98,21 @@ If the page can't be fetched or has no usable job description, still return the 
         messages,
       });
       continuations++;
+    }
+
+    // If the fetch failed (blocked / url_too_long) and there's no pasted
+    // fallback, the model would only fabricate a generic result — return a
+    // clear error and DON'T charge it against the user's usage.
+    const fetchResults = message.content.filter((b) => b.type === 'web_fetch_tool_result');
+    const fetchSucceeded = fetchResults.some(
+      (b) => b.content && 'type' in b.content && b.content.type === 'web_fetch_result',
+    );
+    if (fetchResults.length > 0 && !fetchSucceeded && !pasted) {
+      console.warn(`[analyze] web_fetch failed for ${user.id}, no pasted fallback — not charged.`);
+      return NextResponse.json(
+        { error: "Couldn't read that job posting — the site may block automated access. Open the posting, copy its description into the box below, and analyze again." },
+        { status: 422 },
+      );
     }
 
     // Record cost for every completed call (even truncated ones consumed tokens).
