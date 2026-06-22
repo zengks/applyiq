@@ -1,26 +1,106 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+@theme {
+  --font-sans: "Plus Jakarta Sans", sans-serif;
+
+  /* Accent */
+  --color-pink-primary: #ec4899;
+  --color-pink-dark: #be185d;
+  --color-pink-light: #fce7f3;
+  --color-purple-accent: #8b5cf6;
+  --color-purple-light: #f5f3ff;
+
+  /* Light mode */
+  --color-page-bg: #f5f3f0;
+  --color-sidebar-bg: #ffffff;
+  --color-card-bg: #ffffff;
+  --color-inner-bg: #f9f7f5;
+  --color-text-primary: #1a1917;
+  --color-text-secondary: #4b5563;
+  --color-text-muted: #9ca3af;
+  --color-divider: #ede9e4;
+  --color-input-bg: #f9f7f5;
+  --color-input-border: #dedad5;
+  --color-nav-active-bg: #fce7f3;
+  --color-nav-active-text: #be185d;
+  --color-nav-inactive: #6b6864;
+
+  /* Status */
+  --color-status-saved-text: #9ca3af;
+  --color-status-saved-bg: #f3f4f6;
+  --color-status-applied-text: #3b82f6;
+  --color-status-applied-bg: #eff6ff;
+  --color-status-interview-text: #f59e0b;
+  --color-status-interview-bg: #fffbeb;
+  --color-status-offer-text: #059669;
+  --color-status-offer-bg: #ecfdf5;
+  --color-status-rejected-text: #ef4444;
+  --color-status-rejected-bg: #fef2f2;
+
+  --radius-card: 14px;
+  --radius-inner: 10px;
+  --radius-kanban: 11px;
+  --radius-btn: 9px;
+  --radius-badge: 20px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+*, *::before, *::after { box-sizing: border-box; }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  background: var(--color-page-bg);
+  color: var(--color-text-primary);
+  overflow: hidden;
 }
+
+body.dark {
+  --color-page-bg: #0f0e0d;
+  --color-sidebar-bg: #0a0908;
+  --color-card-bg: #1c1b19;
+  --color-inner-bg: #151413;
+  --color-text-primary: #f0ede9;
+  --color-text-secondary: #b4bac4;
+  --color-text-muted: #8a8784;
+  --color-divider: rgba(255,255,255,0.09);
+  --color-input-bg: #151413;
+  --color-input-border: #2c2926;
+  --color-nav-active-bg: rgba(236,72,153,0.15);
+  --color-nav-active-text: #f0ede9;
+  --color-nav-inactive: #8a8784;
+}
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border-radius: 3px; background: rgba(128,128,128,0.25); }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+@keyframes pulse-fade {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+.animate-fadeUp   { animation: fadeUp  0.25s ease both; }
+.animate-slideIn  { animation: slideIn 0.25s ease both; }
+.animate-scaleIn  { animation: scaleIn 0.15s ease both; }
+.animate-spin-ai  { animation: spin 0.8s linear infinite; }
+.animate-pulse-fade { animation: pulse-fade 1.5s ease infinite; }

@@ -1,0 +1,212 @@
+'use client';
+
+import { useStore } from '@/lib/store';
+import { Application } from '@/lib/types';
+import { getLogoColor, getInitial, STATUS_LABELS, STATUS_COLORS, getMatchColors, deadlineColor, formatDeadline, todayString, greetingPrefix } from '@/lib/utils';
+
+export default function Dashboard() {
+  const { applications, profileName, darkMode, dispatch } = useStore();
+
+  const t = {
+    p: darkMode ? '#f0ede9' : '#1a1917',
+    s: darkMode ? '#b4bac4' : '#4b5563',
+    m: darkMode ? '#8a8784' : '#9ca3af',
+    d: darkMode ? 'rgba(255,255,255,0.09)' : '#ede9e4',
+    card: darkMode ? '#1c1b19' : '#ffffff',
+    inner: darkMode ? '#151413' : '#f9f7f5',
+  };
+
+  const applied = applications.filter(a => a.status !== 'saved');
+  const interviews = applications.filter(a => a.status === 'interview');
+  const offers = applications.filter(a => a.status === 'offer');
+  const avgMatch = applied.length ? Math.round(applied.reduce((s, a) => s + a.match, 0) / applied.length) : 0;
+  const interviewRate = applied.length ? Math.round((interviews.length / applied.length) * 100) : 0;
+
+  const recent = [...applications].slice(0, 6);
+  const withDeadlines = applications.filter(a => a.deadline).sort((a, b) => new Date(a.deadline!).getTime() - new Date(b.deadline!).getTime()).slice(0, 4);
+  const topMatches = [...applications].sort((a, b) => b.match - a.match).slice(0, 3);
+
+  const firstName = profileName?.split(' ')[0] || 'there';
+
+  const cardStyle = {
+    background: t.card, borderRadius: 14, padding: '20px 22px',
+    border: `1px solid ${t.d}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+  };
+
+  return (
+    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, animation: 'fadeUp 0.25s ease' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>
+            {greetingPrefix()}, {firstName} 👋
+          </h1>
+          <p style={{ fontSize: 14, color: t.s, margin: '6px 0 0' }}>{todayString()} · Your job search at a glance.</p>
+        </div>
+        <button
+          onClick={() => dispatch({ type: 'SET_VIEW', view: 'ai' })}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+          </svg>
+          Analyze a Job
+        </button>
+      </div>
+
+      {/* Stats grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+        <StatCard label="Total Applied" value={String(applied.length)} sub="↑ 3 added this week" subColor="#059669" iconBg="#fce7f3" icon={<BriefcaseStatIcon />} darkMode={darkMode} />
+        <StatCard label="Interviews" value={String(interviews.length)} sub={`→ ${interviewRate}% interview rate`} subColor="#f59e0b" iconBg="#fffbeb" icon={<ChatIcon />} darkMode={darkMode} />
+        <StatCard label="Avg. Match" value={String(avgMatch)} suffix="%" sub="Across all applications" subColor={t.m} iconBg="#fce7f3" icon={<SparkleStatIcon />} darkMode={darkMode} />
+        <OfferCard count={offers.length} darkMode={darkMode} />
+      </div>
+
+      {/* Main grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 20, alignItems: 'start' }}>
+        {/* Recent applications */}
+        <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+          <div style={{ padding: '18px 22px 14px', borderBottom: `1px solid ${t.d}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h2 style={{ fontSize: 15, fontWeight: 700, color: t.p, margin: 0 }}>Recent Applications</h2>
+            <button onClick={() => dispatch({ type: 'SET_VIEW', view: 'applications' })} style={{ fontSize: 12, fontWeight: 600, color: '#ec4899', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 6, fontFamily: 'inherit' }}>
+              View board →
+            </button>
+          </div>
+          {recent.map((app: Application) => {
+            const sc = STATUS_COLORS[app.status];
+            const mc = getMatchColors(app.match);
+            return (
+              <div
+                key={app.id}
+                onClick={() => dispatch({ type: 'OPEN_DETAIL', id: app.id })}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 22px', borderBottom: `1px solid ${t.d}`, cursor: 'pointer' }}
+                onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = t.inner; }}
+                onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+              >
+                <div style={{ width: 36, height: 36, borderRadius: 9, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 800, background: getLogoColor(app.company) }}>
+                  {getInitial(app.company)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.p, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{app.role}</div>
+                  <div style={{ fontSize: 12, color: t.m }}>{app.company}</div>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  <span style={{ background: sc.bg, color: sc.text, fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{STATUS_LABELS[app.status]}</span>
+                  <span style={{ background: mc.bg, color: mc.text, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, minWidth: 42, textAlign: 'center' }}>{app.match}%</span>
+                </div>
+              </div>
+            );
+          })}
+          {recent.length === 0 && (
+            <div style={{ padding: 32, textAlign: 'center', color: t.m, fontSize: 13 }}>No applications yet. Add your first one!</div>
+          )}
+        </div>
+
+        {/* Right column */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Deadlines */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: t.p, margin: '0 0 14px' }}>Upcoming Deadlines</h2>
+            {withDeadlines.length === 0 ? (
+              <div style={{ fontSize: 13, color: t.m }}>No upcoming deadlines.</div>
+            ) : withDeadlines.map(app => (
+              <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: t.p }}>{app.role}</div>
+                  <div style={{ fontSize: 11, color: t.m }}>{app.company}</div>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 700, color: deadlineColor(app.deadline), background: darkMode ? 'rgba(255,255,255,0.06)' : '#f9f7f5', padding: '3px 10px', borderRadius: 20, flexShrink: 0 }}>
+                  {formatDeadline(app.deadline)}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* AI Top Matches */}
+          <div style={{ ...cardStyle, background: darkMode ? '#1a1018' : 'linear-gradient(135deg, #fdf2f8, #f5f3ff)', border: 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14 }}>
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="#ec4899" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+              </svg>
+              <h2 style={{ fontSize: 14, fontWeight: 700, color: darkMode ? '#f0ede9' : '#1a1917', margin: 0 }}>AI Top Matches</h2>
+            </div>
+            {topMatches.map(app => {
+              const mc = getMatchColors(app.match);
+              return (
+                <div key={app.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: darkMode ? '#f0ede9' : '#1a1917' }}>{app.role}</div>
+                    <div style={{ fontSize: 11, color: darkMode ? '#8a8784' : '#9ca3af' }}>{app.company}</div>
+                  </div>
+                  <span style={{ background: mc.bg, color: mc.text, fontSize: 12, fontWeight: 800, padding: '3px 10px', borderRadius: 20 }}>{app.match}%</span>
+                </div>
+              );
+            })}
+            <button onClick={() => dispatch({ type: 'SET_VIEW', view: 'ai' })} style={{ width: '100%', marginTop: 10, padding: '9px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              Analyze a New Job →
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ label, value, suffix, sub, subColor, iconBg, icon, darkMode }: {
+  label: string; value: string; suffix?: string; sub: string; subColor: string; iconBg: string; icon: React.ReactNode; darkMode: boolean;
+}) {
+  const card = darkMode ? '#1c1b19' : '#ffffff';
+  const border = darkMode ? 'rgba(255,255,255,0.09)' : '#ede9e4';
+  const textP = darkMode ? '#f0ede9' : '#1a1917';
+  const textM = darkMode ? '#8a8784' : '#9ca3af';
+  return (
+    <div style={{ background: card, borderRadius: 14, padding: '20px 22px', border: `1px solid ${border}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: textM, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</span>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{icon}</div>
+      </div>
+      <div style={{ fontSize: 46, fontWeight: 800, lineHeight: 1, letterSpacing: '-2px', marginBottom: 5, color: textP }}>
+        {value}{suffix && <span style={{ fontSize: 20, fontWeight: 600, color: textM }}>{suffix}</span>}
+      </div>
+      <div style={{ fontSize: 12, color: subColor, fontWeight: 500 }}>{sub}</div>
+    </div>
+  );
+}
+
+function OfferCard({ count, darkMode }: { count: number; darkMode: boolean }) {
+  const bg = darkMode ? 'linear-gradient(135deg,#2d0a1e,#1a0d2e)' : 'linear-gradient(135deg,#fce7f3,#f5f3ff)';
+  const numC = darkMode ? '#f0ede9' : '#1a1917';
+  const lblC = darkMode ? 'rgba(240,237,233,0.7)' : '#9d174d';
+  const border = darkMode ? 'rgba(255,255,255,0.07)' : '#f3e8ff';
+  return (
+    <div style={{ background: bg, borderRadius: 14, padding: '20px 22px', border: `1px solid ${border}`, boxShadow: '0 1px 3px rgba(0,0,0,0.05)', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: -14, right: -14, width: 70, height: 70, background: 'radial-gradient(circle,rgba(236,72,153,0.45) 0%,transparent 70%)', pointerEvents: 'none' }} />
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, position: 'relative' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: lblC, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Offers</span>
+        <div style={{ width: 30, height: 30, borderRadius: 8, background: 'rgba(16,185,129,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <div style={{ fontSize: 46, fontWeight: 800, lineHeight: 1, letterSpacing: '-2px', marginBottom: 5, color: numC, position: 'relative' }}>{count}</div>
+      <div style={{ fontSize: 12, color: '#ec4899', fontWeight: 600, position: 'relative' }}>🎉 You&apos;re doing great!</div>
+    </div>
+  );
+}
+
+const BriefcaseStatIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2" />
+  </svg>
+);
+const ChatIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#f59e0b" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+  </svg>
+);
+const SparkleStatIcon = () => (
+  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#ec4899" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+  </svg>
+);
