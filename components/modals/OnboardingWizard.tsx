@@ -8,6 +8,33 @@ export default function OnboardingWizard() {
   const [name, setName] = useState('');
   const [title, setTitle] = useState('');
   const [resume, setResume] = useState('');
+  const [parsing, setParsing] = useState(false);
+
+  async function uploadResumeFile(file: File) {
+    setParsing(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/resume/parse', { method: 'POST', body: form });
+      const data = await res.json();
+      if (res.ok && data.text) setResume(data.text);
+    } catch {
+      // leave the textarea as-is on failure
+    } finally {
+      setParsing(false);
+    }
+  }
+
+  function pickResumeFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf,.docx,.txt,.md';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) void uploadResumeFile(file);
+    };
+    input.click();
+  }
 
   const card = darkMode ? '#1c1b19' : '#ffffff';
   const bg = darkMode ? '#0f0e0d' : '#f5f3f0';
@@ -53,7 +80,7 @@ export default function OnboardingWizard() {
               </svg>
             </div>
             <h1 style={{ fontSize: 24, fontWeight: 800, color: textPrimary, textAlign: 'center', marginBottom: 10, letterSpacing: '-0.5px' }}>Welcome to ApplyIQ</h1>
-            <p style={{ fontSize: 14, color: textSecondary, textAlign: 'center', marginBottom: 28, lineHeight: 1.6 }}>Your AI-powered job search assistant. Let's get you set up in under a minute.</p>
+            <p style={{ fontSize: 14, color: textSecondary, textAlign: 'center', marginBottom: 28, lineHeight: 1.6 }}>Your AI-powered job search assistant. Let&apos;s get you set up in under a minute.</p>
 
             <div style={{ marginBottom: 16 }}>
               <label style={labelStyle}>Your Name</label>
@@ -78,7 +105,13 @@ export default function OnboardingWizard() {
           <div>
             <h2 style={{ fontSize: 20, fontWeight: 800, color: textPrimary, marginBottom: 8, letterSpacing: '-0.3px' }}>Paste Your Resume</h2>
             <p style={{ fontSize: 14, color: textSecondary, marginBottom: 20, lineHeight: 1.6 }}>This helps our AI match you to jobs accurately. You can update it anytime in Resume Vault.</p>
-            <label style={labelStyle}>Resume Text</label>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <label style={{ ...labelStyle, marginBottom: 0 }}>Resume Text</label>
+              <button type="button" onClick={pickResumeFile} disabled={parsing}
+                style={{ fontSize: 12, fontWeight: 700, color: '#ec4899', background: 'transparent', border: 'none', cursor: parsing ? 'default' : 'pointer', fontFamily: 'inherit' }}>
+                {parsing ? 'Reading file…' : '↑ Upload PDF / DOCX / TXT'}
+              </button>
+            </div>
             <textarea
               style={{ ...inputStyle, minHeight: 200, resize: 'vertical', lineHeight: 1.6 }}
               placeholder="Paste your full resume text here..."
@@ -103,7 +136,7 @@ export default function OnboardingWizard() {
                 <path d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             </div>
-            <h2 style={{ fontSize: 22, fontWeight: 800, color: textPrimary, marginBottom: 10, letterSpacing: '-0.4px' }}>You're all set, {firstName}!</h2>
+            <h2 style={{ fontSize: 22, fontWeight: 800, color: textPrimary, marginBottom: 10, letterSpacing: '-0.4px' }}>You&apos;re all set, {firstName}!</h2>
             <p style={{ fontSize: 14, color: textSecondary, marginBottom: 28, lineHeight: 1.6 }}>Your profile is ready. Start by analyzing a job posting to see your match score, get a cover letter, and more.</p>
 
             <button

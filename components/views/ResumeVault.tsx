@@ -7,6 +7,8 @@ import { Resume } from '@/lib/types';
 export default function ResumeVault() {
   const { resumes, darkMode, dispatch } = useStore();
   const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -21,21 +23,37 @@ export default function ResumeVault() {
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files[0];
-    if (!file) return;
-    addResume(file.name);
+    if (file) void addResume(file);
   }
 
-  function addResume(name: string) {
-    const newResume: Resume = {
-      id: Date.now(),
-      name: name.replace(/\.[^.]+$/, ''),
-      updatedAt: new Date().toISOString().split('T')[0],
-      jobsMatched: 0,
-      atsScore: Math.floor(Math.random() * 30) + 60,
-      isDefault: false,
-      text: '',
-    };
-    dispatch({ type: 'ADD_RESUME', resume: newResume });
+  async function addResume(file: File) {
+    setUploadError('');
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch('/api/resume/parse', { method: 'POST', body: form });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadError(data.error || 'Upload failed.');
+        return;
+      }
+      const newResume: Resume = {
+        id: crypto.randomUUID(),
+        name: file.name.replace(/\.[^.]+$/, ''),
+        updatedAt: new Date().toISOString().split('T')[0],
+        jobsMatched: 0,
+        atsScore: Math.floor(Math.random() * 30) + 60,
+        isDefault: resumes.length === 0,
+        text: data.text || '',
+        filePath: data.filePath || null,
+      };
+      dispatch({ type: 'ADD_RESUME', resume: newResume });
+    } catch {
+      setUploadError('Upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+    }
   }
 
   return (
@@ -58,12 +76,13 @@ export default function ResumeVault() {
           transition: 'all 0.2s',
         }}
         onClick={() => {
+          if (uploading) return;
           const input = document.createElement('input');
           input.type = 'file';
-          input.accept = '.pdf,.doc,.docx,.txt';
+          input.accept = '.pdf,.docx,.txt,.md';
           input.onchange = (e) => {
             const file = (e.target as HTMLInputElement).files?.[0];
-            if (file) addResume(file.name);
+            if (file) void addResume(file);
           };
           input.click();
         }}
@@ -74,9 +93,10 @@ export default function ResumeVault() {
           </svg>
         </div>
         <div style={{ fontSize: 14, fontWeight: 700, color: dragging ? '#be185d' : t.p }}>
-          {dragging ? 'Drop your resume here' : 'Upload a new resume'}
+          {uploading ? 'Uploading & reading…' : dragging ? 'Drop your resume here' : 'Upload a new resume'}
         </div>
-        <div style={{ fontSize: 12, color: t.m, marginTop: 4 }}>PDF, DOC, DOCX, or TXT · Drag & drop or click to browse</div>
+        <div style={{ fontSize: 12, color: t.m, marginTop: 4 }}>PDF, DOCX, TXT, or MD · Drag & drop or click to browse</div>
+        {uploadError && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 8 }}>{uploadError}</div>}
       </div>
 
       {/* Resume grid */}

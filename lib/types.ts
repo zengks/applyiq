@@ -1,7 +1,7 @@
 export type AppStatus = 'saved' | 'applied' | 'interview' | 'offer' | 'rejected';
 
 export interface Application {
-  id: number;
+  id: string;
   company: string;
   role: string;
   status: AppStatus;
@@ -27,13 +27,26 @@ export interface AIResult {
 }
 
 export interface Resume {
-  id: number;
+  id: string;
   name: string;
   updatedAt: string;
   jobsMatched: number;
   atsScore: number;
   isDefault: boolean;
   text: string;
+  filePath: string | null;
+}
+
+export type SubStatus =
+  | 'trialing' | 'active' | 'past_due' | 'canceled'
+  | 'incomplete' | 'incomplete_expired' | 'unpaid' | 'paused';
+
+export interface Subscription {
+  status: SubStatus | null;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  priceId: string | null;
 }
 
 export type ActiveView = 'dashboard' | 'applications' | 'ai' | 'resume' | 'stats';

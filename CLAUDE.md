@@ -7,22 +7,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 npm run dev     # Start dev server (http://localhost:3000)
 npm run build   # Production build
+npm run start   # Serve the production build (run after `npm run build`)
 npm run lint    # ESLint
 ```
 
-**Requires** a `.env.local` file with `ANTHROPIC_API_KEY=sk-...` (copy from `.env.local.example`).
+There is no test suite.
+
+**Requires** a `.env.local` file with `ANTHROPIC_API_KEY=sk-...` (copy from `.env.local.example`). The API route constructs `new Anthropic()` with no arguments, so it reads the key implicitly from this env var.
 
 ## Architecture
 
 **Stack:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Anthropic SDK, Recharts.
 
-**Single-page app** — the entire app lives in `app/page.tsx`, which renders one layout with a persistent sidebar and swaps views based on `activeView` state. There is no routing; navigation is purely state-driven.
+**Single-page app** — the entire app lives in `app/page.tsx`, which renders one layout with a persistent sidebar and swaps views based on `activeView` state. There is no routing; navigation is purely state-driven. `page.tsx` (and the whole component tree) is a `'use client'` component — the only server-side code is `app/api/analyze/route.ts`. There is no SSR data fetching.
+
+Imports use the `@/*` path alias mapped to the repo root (see `tsconfig.json`), e.g. `@/lib/store`, `@/components/Sidebar`.
 
 ### State management (`lib/store.tsx`)
-All app state lives in a single React context (`StoreProvider`) powered by `useReducer`. The store initializes from `localStorage` and persists key slices back to it. Exposes derived values: `trialDaysLeft`, `showTrialBanner`, `showExpiredBanner`, `urgentCount`, `selectedApp`. Every component calls `useStore()` — no prop chains.
+All app state lives in a single React context (`StoreProvider`) powered by `useReducer`, mutated exclusively through dispatched actions (the `Action` union type is the full list of allowed mutations). The store lazy-initializes from `localStorage` and persists slices back via separate `useEffect`s — keys are prefixed `applyiq_` (`applyiq_apps`, `applyiq_resumes`, `applyiq_dark`, `applyiq_pro`, profile fields, and `applyiq_onboarded` which gates the onboarding wizard). Not all state persists (modal/drawer flags, AI results, and the active view are session-only). `SEED_APPS` / `SEED_RESUMES` are the fallback demo data on first load. Exposes derived (non-persisted, recomputed each render) values: `trialDaysLeft`, `showTrialBanner`, `showExpiredBanner`, `urgentCount` (deadlines within 3 days), `selectedApp`. Every component calls `useStore()` — no prop chains.
 
 ### AI analysis flow
-`components/views/AIAnalysis.tsx` → `POST /api/analyze` → `app/api/analyze/route.ts` → Anthropic `claude-haiku-4-5`. The API route is the only place that touches the Anthropic SDK, keeping the key server-side.
+`components/views/AIAnalysis.tsx` → `POST /api/analyze` (body: `jobDescription`, `resumeText`) → `app/api/analyze/route.ts` → Anthropic `claude-haiku-4-5`. The API route is the only place that touches the Anthropic SDK, keeping the key server-side. The prompt instructs the model to return raw JSON matching the `AIResult` shape; the route parses it directly and falls back to extracting the first `{...}` block if the model wraps it. **If you change the response fields, update both the prompt's JSON template in `route.ts` and the `AIResult` interface in `lib/types.ts` together.**
 
 ### Key files
 | File | Purpose |

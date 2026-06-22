@@ -47,10 +47,23 @@ export default function PricingModal() {
     inner: darkMode ? '#151413' : '#f9f7f5',
   };
 
-  function selectPlan(plan: typeof PLANS[0]) {
+  async function selectPlan(plan: typeof PLANS[0]) {
     if (plan.disabled) return;
-    dispatch({ type: 'SET_PRO', value: true });
-    dispatch({ type: 'CLOSE_PRICING' });
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: billingCycle }),
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.assign(data.url); // → Stripe Checkout (hosted)
+      } else {
+        console.error('Checkout error:', data.error);
+      }
+    } catch (err) {
+      console.error('Checkout request failed:', err);
+    }
   }
 
   return (

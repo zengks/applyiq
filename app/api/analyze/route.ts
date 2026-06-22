@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { parseAIResponse } from '@/lib/ai';
 
 const client = new Anthropic();
 
@@ -43,22 +44,19 @@ Return ONLY valid raw JSON (no markdown, no code fences):
   try {
     const message = await client.messages.create({
       model: 'claude-haiku-4-5',
-      max_tokens: 1024,
+      // Generous limit: the response includes a full cover letter + interview
+      // questions; 1024 truncated real job posts mid-JSON.
+      max_tokens: 4096,
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const text = message.content[0].type === 'text' ? message.content[0].text : '';
-
-    let result;
-    try {
-      result = JSON.parse(text);
-    } catch {
-      const match = text.match(/\{[\s\S]*\}/);
-      if (match) result = JSON.parse(match[0]);
-      else throw new Error('Could not parse AI response');
+    if (message.stop_reason === 'max_tokens') {
+      console.error('AI analysis truncated: hit max_tokens.');
+      return NextResponse.json({ error: 'The job description is too long to analyze. Try trimming it.' }, { status: 422 });
     }
 
-    return NextResponse.json(result);
+    const raw = message.content[0]?.type === 'text' ? message.content[0].text : '';
+    return NextResponse.json(parseAIResponse(raw));
   } catch (err) {
     console.error('AI analysis error:', err);
     return NextResponse.json({ error: 'Analysis failed. Please try again.' }, { status: 500 });

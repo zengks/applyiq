@@ -11,7 +11,7 @@ const TABS: { key: ActiveTab; label: string }[] = [
 ];
 
 export default function AIAnalysis() {
-  const { jobUrl, jobDescription, aiLoading, analysisShown, aiResult, aiError, activeTab, resumeText, darkMode, coverCopied, dispatch } = useStore();
+  const { jobUrl, jobDescription, aiLoading, analysisShown, aiResult, aiError, aiErrorMsg, activeTab, resumeText, darkMode, coverCopied, dispatch } = useStore();
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -36,12 +36,11 @@ export default function AIAnalysis() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jobDescription, resumeText }),
       });
-      if (!res.ok) throw new Error('API error');
       const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status})`);
       dispatch({ type: 'AI_SUCCESS', result: data });
-    } catch {
-      dispatch({ type: 'AI_ERROR' });
+    } catch (err) {
+      dispatch({ type: 'AI_ERROR', message: err instanceof Error ? err.message : 'Analysis failed.' });
     }
   }
 
@@ -124,8 +123,8 @@ export default function AIAnalysis() {
             <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <div style={{ fontSize: 15, fontWeight: 600, color: t.p }}>Analysis failed</div>
-          <div style={{ fontSize: 13, color: t.s }}>Check your connection or try a different job description.</div>
-          <button onClick={() => dispatch({ type: 'AI_ERROR' })} style={{ padding: '9px 20px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <div style={{ fontSize: 13, color: t.s, textAlign: 'center', maxWidth: 380 }}>{aiErrorMsg || 'Check your connection or try a different job description.'}</div>
+          <button onClick={handleAnalyze} style={{ padding: '9px 20px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             Try Again
           </button>
         </div>

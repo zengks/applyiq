@@ -28,7 +28,7 @@ export default function AddJobModal() {
   function handleSubmit() {
     if (!newJob.company.trim() || !newJob.role.trim()) return;
     const app: Application = {
-      id: Date.now(),
+      id: crypto.randomUUID(),
       company: newJob.company.trim(),
       role: newJob.role.trim(),
       status: newJob.status as AppStatus,
