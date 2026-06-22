@@ -194,9 +194,14 @@ export default function AIAnalysis() {
                     </div>
                   </div>
                   {aiResult.aiSuggestion && (
-                    <div style={{ background: darkMode ? '#1a0d2e' : '#f5f3ff', borderRadius: 10, padding: '14px 16px', border: `1px solid ${darkMode ? '#4c1d95' : '#e9d5ff'}` }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>AI Suggestion</div>
-                      <div style={{ fontSize: 13, color: darkMode ? '#c4b5fd' : '#6d28d9', lineHeight: 1.6 }}>{aiResult.aiSuggestion}</div>
+                    <div style={{ background: darkMode ? '#1a0d2e' : '#faf8ff', borderRadius: 10, padding: '16px 18px', border: `1px solid ${darkMode ? '#4c1d95' : '#e9d5ff'}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="#8b5cf6" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        </svg>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#8b5cf6', textTransform: 'uppercase', letterSpacing: '0.06em' }}>AI Suggestion</div>
+                      </div>
+                      <div style={{ fontSize: 15, fontWeight: 500, color: darkMode ? '#e2dcf5' : '#312352', lineHeight: 1.75, letterSpacing: '0.01em' }}>{aiResult.aiSuggestion}</div>
                     </div>
                   )}
                 </div>
