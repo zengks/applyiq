@@ -15,6 +15,8 @@ There is no test suite.
 
 **Requires** a `.env.local` file with `ANTHROPIC_API_KEY=sk-...` (copy from `.env.local.example`). The API route constructs `new Anthropic()` with no arguments, so it reads the key implicitly from this env var.
 
+**Version / changelog:** `next.config.ts` injects `NEXT_PUBLIC_APP_VERSION` (from `package.json`) and `NEXT_PUBLIC_GIT_SHA` (git short SHA) at build time; the sidebar footer shows `VERSION_LABEL` and opens the "What's new" modal. The changelog reads GitHub Releases for `GITHUB_REPO` (default `zengks/applyiq`), falling back to recent commits; set `GITHUB_TOKEN` (PAT with repo read) so a **private** repo's data is visible — otherwise the feed is empty.
+
 ## Architecture
 
 **Stack:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS v4, Anthropic SDK, Recharts.
@@ -39,7 +41,9 @@ All app state lives in a single React context (`StoreProvider`) powered by `useR
 | `components/Sidebar.tsx` | 240px nav sidebar with dark mode toggle |
 | `components/TrialBanner.tsx` | Sticky top banner (trial active / expired) |
 | `components/views/` | Dashboard, Applications (Kanban), AIAnalysis, ResumeVault, Analytics |
-| `components/modals/` | OnboardingWizard, DetailDrawer, AddJobModal, PricingModal |
+| `components/modals/` | OnboardingWizard, DetailDrawer, AddJobModal, PricingModal, WhatsNewModal |
+| `lib/version.ts` | Build-time app version/SHA (`VERSION_LABEL`) + GitHub changelog normalizers |
+| `app/api/changelog/route.ts` | "What's new" feed — GitHub Releases (falls back to commits) |
 
 ### Styling
 Tailwind CSS v4 (CSS-first config — no `tailwind.config.ts`). Design tokens in `app/globals.css` under `@theme`. Dark mode toggles the `dark` class on `<body>` and uses CSS custom properties. Components use **inline styles** matching the pixel-precise design spec, not Tailwind utility classes.

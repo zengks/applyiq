@@ -1,7 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { ActiveView } from '@/lib/types';
+import { VERSION_LABEL } from '@/lib/version';
+import WhatsNewModal from '@/components/modals/WhatsNewModal';
 
 const SparkleIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -105,6 +108,7 @@ export default function Sidebar() {
   const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, showTrialBanner, showExpiredBanner, dispatch } = useStore();
 
   const selectView = (view: ActiveView) => dispatch({ type: 'SET_VIEW', view });
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   const sidebarBg = darkMode ? '#0a0908' : '#ffffff';
   const borderColor = darkMode ? 'rgba(255,255,255,0.09)' : '#ede9e4';
@@ -222,6 +226,23 @@ export default function Sidebar() {
           {darkMode ? <SunIcon /> : <MoonIcon />}
         </button>
       </div>
+
+      {/* Version / What's new */}
+      <button
+        onClick={() => setShowWhatsNew(true)}
+        title="What's new"
+        style={{
+          padding: '8px 16px', background: 'transparent', border: 'none',
+          borderTop: `1px solid ${borderColor}`,
+          cursor: 'pointer', fontFamily: 'inherit', fontSize: 11, color: textMuted, textAlign: 'center', width: '100%',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#ec4899'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = textMuted; }}
+      >
+        {VERSION_LABEL}{' · '}What&apos;s new
+      </button>
+
+      <WhatsNewModal open={showWhatsNew} onClose={() => setShowWhatsNew(false)} darkMode={darkMode} />
     </aside>
   );
 }
