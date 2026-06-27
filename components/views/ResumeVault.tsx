@@ -118,6 +118,14 @@ function ResumeCard({ resume, darkMode, onSetDefault }: { resume: Resume; darkMo
   const textP = darkMode ? '#f0ede9' : '#1a1917';
   const textM = darkMode ? '#8a8784' : '#9ca3af';
 
+  const hasFile = !!resume.filePath;
+  // Original filename = display name + the stored file's extension.
+  const ext = resume.filePath?.match(/\.[^./]+$/)?.[0] ?? '';
+  const downloadName = `${resume.name}${ext}`;
+  const fileUrl = (download: boolean) =>
+    `/api/resume/file?path=${encodeURIComponent(resume.filePath!)}` +
+    (download ? `&download=${encodeURIComponent(downloadName)}` : '');
+
   return (
     <div style={{
       background: card, borderRadius: 14, padding: '20px 22px',
@@ -155,6 +163,39 @@ function ResumeCard({ resume, darkMode, onSetDefault }: { resume: Resume; darkMo
           <div style={{ fontSize: 10, fontWeight: 700, color: textM, textTransform: 'uppercase', letterSpacing: '0.04em' }}>ATS Score</div>
         </div>
       </div>
+
+      {hasFile && (
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <a
+            href={fileUrl(false)}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+              background: inner, color: textP, border: `1px solid ${border}`, borderRadius: 9,
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" />
+            </svg>
+            View
+          </a>
+          <a
+            href={fileUrl(true)}
+            style={{
+              flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px', fontSize: 13, fontWeight: 700, textDecoration: 'none',
+              background: inner, color: textP, border: `1px solid ${border}`, borderRadius: 9,
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download
+          </a>
+        </div>
+      )}
 
       <button
         onClick={onSetDefault}

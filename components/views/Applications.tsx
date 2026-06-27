@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { Application, AppStatus } from '@/lib/types';
 import { getLogoColor, getInitial, getMatchColors, formatDeadline, deadlineColor } from '@/lib/utils';
@@ -14,6 +15,8 @@ const COLUMNS: { status: AppStatus; label: string; color: string }[] = [
 
 export default function Applications() {
   const { applications, darkMode, dispatch } = useStore();
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<AppStatus | null>(null);
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -22,6 +25,17 @@ export default function Applications() {
     card: darkMode ? '#1c1b19' : '#ffffff',
     inner: darkMode ? '#151413' : '#f9f7f5',
     colBg: darkMode ? '#151413' : '#f9f7f5',
+  };
+
+  const handleDrop = (status: AppStatus) => {
+    if (draggingId) {
+      const app = applications.find(a => a.id === draggingId);
+      if (app && app.status !== status) {
+        dispatch({ type: 'UPDATE_APP_STATUS', id: draggingId, status });
+      }
+    }
+    setDraggingId(null);
+    setDragOverCol(null);
   };
 
   return (
@@ -40,22 +54,38 @@ export default function Applications() {
       <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, flex: 1 }}>
         {COLUMNS.map(col => {
           const cards = applications.filter(a => a.status === col.status);
+          const isOver = dragOverCol === col.status;
           return (
-            <div key={col.status} style={{ width: 250, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div
+              key={col.status}
+              onDragOver={e => { e.preventDefault(); if (dragOverCol !== col.status) setDragOverCol(col.status); }}
+              onDragLeave={e => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverCol(prev => prev === col.status ? null : prev); }}
+              onDrop={e => { e.preventDefault(); handleDrop(col.status); }}
+              style={{
+                width: 250, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10,
+                padding: 6, margin: -6, borderRadius: 12,
+                background: isOver ? col.color + '14' : 'transparent',
+                outline: isOver ? `1.5px dashed ${col.color}88` : '1.5px dashed transparent',
+                transition: 'background 0.12s, outline-color 0.12s',
+              }}
+            >
               {/* Column header */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: col.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col.label}</span>
                 <span style={{ background: col.color + '22', color: col.color, fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 20 }}>{cards.length}</span>
               </div>
               {/* Cards */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 {cards.map(app => (
                   <KanbanCard key={app.id} app={app} darkMode={darkMode} colColor={col.status === 'offer' ? '#059669' : undefined}
+                    dragging={draggingId === app.id}
+                    onDragStart={() => setDraggingId(app.id)}
+                    onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
                     onOpen={() => dispatch({ type: 'OPEN_DETAIL', id: app.id })}
                   />
                 ))}
                 {cards.length === 0 && (
-                  <div style={{ padding: '20px 14px', borderRadius: 11, border: `1.5px dashed ${t.d}`, textAlign: 'center', fontSize: 12, color: t.m }}>No jobs here</div>
+                  <div style={{ padding: '20px 14px', borderRadius: 11, border: `1.5px dashed ${t.d}`, textAlign: 'center', fontSize: 12, color: t.m }}>{isOver ? 'Drop here' : 'No jobs here'}</div>
                 )}
               </div>
             </div>
@@ -66,7 +96,7 @@ export default function Applications() {
   );
 }
 
-function KanbanCard({ app, darkMode, colColor, onOpen }: { app: Application; darkMode: boolean; colColor?: string; onOpen: () => void }) {
+function KanbanCard({ app, darkMode, colColor, dragging, onOpen, onDragStart, onDragEnd }: { app: Application; darkMode: boolean; colColor?: string; dragging: boolean; onOpen: () => void; onDragStart: () => void; onDragEnd: () => void }) {
   const mc = getMatchColors(app.match);
   const cardBg = darkMode ? '#1c1b19' : '#ffffff';
   const border = darkMode ? 'rgba(255,255,255,0.07)' : '#ede9e4';
@@ -76,15 +106,18 @@ function KanbanCard({ app, darkMode, colColor, onOpen }: { app: Application; dar
 
   return (
     <div
+      draggable
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', app.id); onDragStart(); }}
+      onDragEnd={onDragEnd}
       onClick={onOpen}
       style={{
-        background: cardBg, borderRadius: 11, padding: 14, cursor: 'pointer',
+        background: cardBg, borderRadius: 11, padding: 14, cursor: 'grab',
         border: colColor ? `1.5px solid ${colColor}44` : `1px solid ${border}`,
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        opacity: rejected ? 0.55 : 1,
-        transition: 'transform 0.15s, box-shadow 0.15s',
+        opacity: dragging ? 0.4 : rejected ? 0.55 : 1,
+        transition: 'transform 0.15s, box-shadow 0.15s, opacity 0.12s',
       }}
-      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.09)'; }}
+      onMouseEnter={e => { if (!dragging) { (e.currentTarget as HTMLElement).style.transform = 'translateY(-1px)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 4px 14px rgba(0,0,0,0.09)'; } }}
       onMouseLeave={e => { (e.currentTarget as HTMLElement).style.transform = 'translateY(0)'; (e.currentTarget as HTMLElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)'; }}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10 }}>
