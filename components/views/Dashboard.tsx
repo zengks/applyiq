@@ -1,11 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { Application } from '@/lib/types';
-import { getLogoColor, getInitial, STATUS_LABELS, STATUS_COLORS, getMatchColors, deadlineColor, formatDeadline, todayString, greetingPrefix } from '@/lib/utils';
+import { getLogoColor, getInitial, STATUS_LABELS, STATUS_COLORS, getMatchColors, deadlineColor, formatDeadline, todayString, greetingPrefix, POSTING_BADGES, postingHeadline } from '@/lib/utils';
 
 export default function Dashboard() {
-  const { applications, profileName, darkMode, isPro, isTrialing, trialDaysLeft, dispatch } = useStore();
+  const { applications, profileName, darkMode, isPro, isTrialing, trialDaysLeft, stalePostings, dispatch } = useStore();
+  // Session-only: dismissing hides the banner until the next reload, the badges
+  // on the board stay either way.
+  const [staleDismissed, setStaleDismissed] = useState(false);
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -54,6 +58,16 @@ export default function Dashboard() {
         </button>
       </div>
 
+      {/* Dead / closed postings */}
+      {stalePostings.length > 0 && !staleDismissed && (
+        <StalePostingsAlert
+          apps={stalePostings}
+          darkMode={darkMode}
+          onOpen={id => dispatch({ type: 'OPEN_DETAIL', id })}
+          onDismiss={() => setStaleDismissed(true)}
+        />
+      )}
+
       {/* Upgrade promo + sponsored links — only for non-Pro users */}
       {!isPro && <UpgradePromo isTrialing={isTrialing} trialDaysLeft={trialDaysLeft} darkMode={darkMode} dispatch={dispatch} />}
 
@@ -78,6 +92,7 @@ export default function Dashboard() {
           {recent.map((app: Application) => {
             const sc = STATUS_COLORS[app.status];
             const mc = getMatchColors(app.match);
+            const pb = app.status === 'offer' || app.status === 'rejected' ? null : POSTING_BADGES[app.postingStatus];
             return (
               <div
                 key={app.id}
@@ -94,6 +109,11 @@ export default function Dashboard() {
                   <div style={{ fontSize: 12, color: t.m }}>{app.company}</div>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                  {pb && (
+                    <span title={app.postingNote || undefined} style={{ background: pb.bg, color: pb.text, border: `1px solid ${pb.border}`, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20 }}>
+                      {pb.icon} {pb.label}
+                    </span>
+                  )}
                   <span style={{ background: sc.bg, color: sc.text, fontSize: 11, fontWeight: 600, padding: '3px 10px', borderRadius: 20 }}>{STATUS_LABELS[app.status]}</span>
                   <span style={{ background: mc.bg, color: mc.text, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, minWidth: 42, textAlign: 'center' }}>{app.match}%</span>
                 </div>
@@ -151,6 +171,71 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Top-of-dashboard warning listing saved jobs whose posting has been closed or
+ * taken down at the source, so a dead link can't sit unnoticed on the board.
+ */
+function StalePostingsAlert({ apps, darkMode, onOpen, onDismiss }: {
+  apps: Application[]; darkMode: boolean; onOpen: (id: string) => void; onDismiss: () => void;
+}) {
+  const removed = apps.filter(a => a.postingStatus === 'removed').length;
+  const expired = apps.length - removed;
+  const parts = [
+    removed ? `${removed} taken down` : '',
+    expired ? `${expired} no longer accepting applications` : '',
+  ].filter(Boolean).join(' · ');
+
+  const textP = darkMode ? '#f0ede9' : '#1a1917';
+  const textM = darkMode ? '#b4bac4' : '#6b6864';
+
+  return (
+    <div role="status" style={{
+      display: 'flex', alignItems: 'flex-start', gap: 16, padding: '16px 20px', borderRadius: 14,
+      background: darkMode ? 'rgba(245,158,11,0.09)' : '#fffbeb',
+      border: `1px solid ${darkMode ? 'rgba(245,158,11,0.3)' : '#fcd34d'}`,
+    }}>
+      <div style={{ width: 34, height: 34, borderRadius: 10, flexShrink: 0, background: darkMode ? 'rgba(245,158,11,0.18)' : '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }} aria-hidden>⚠</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: textP, letterSpacing: '-0.2px' }}>
+          {apps.length === 1
+            ? '1 saved job is no longer live at its source'
+            : `${apps.length} saved jobs are no longer live at their source`}
+        </div>
+        <div style={{ fontSize: 12, color: textM, marginTop: 3 }}>{parts}. Open one to see what happened, or remove it from your board.</div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
+          {apps.slice(0, 5).map(a => {
+            const pb = POSTING_BADGES[a.postingStatus];
+            return (
+              <button
+                key={a.id}
+                onClick={() => onOpen(a.id)}
+                title={postingHeadline(a.postingStatus)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6, padding: '5px 11px', borderRadius: 20,
+                  background: darkMode ? 'rgba(0,0,0,0.25)' : '#ffffff',
+                  border: `1px solid ${pb?.border ?? '#fcd34d'}`,
+                  color: pb?.text ?? textP, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                }}
+              >
+                <span aria-hidden>{pb?.icon}</span>{a.role} · {a.company}
+              </button>
+            );
+          })}
+          {apps.length > 5 && <span style={{ fontSize: 12, color: textM, alignSelf: 'center' }}>+{apps.length - 5} more</span>}
+        </div>
+      </div>
+      <button
+        onClick={onDismiss}
+        title="Dismiss"
+        aria-label="Dismiss"
+        style={{ width: 26, height: 26, flexShrink: 0, borderRadius: 7, border: 'none', background: 'transparent', color: textM, cursor: 'pointer', fontSize: 13, fontFamily: 'inherit' }}
+      >
+        ✕
+      </button>
     </div>
   );
 }

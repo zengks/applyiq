@@ -3,7 +3,8 @@ import { reducer, INITIAL, type State, type Action } from '@/lib/store';
 import type { Application, AIResult, Resume } from '@/lib/types';
 
 const app = (over: Partial<Application> = {}): Application => ({
-  id: 'a1', company: 'Stripe', role: 'FE', status: 'saved', match: 80, deadline: null, url: '', notes: '', ...over,
+  id: 'a1', company: 'Stripe', role: 'FE', status: 'saved', match: 80, deadline: null, url: '', notes: '',
+  postingStatus: 'unknown', postingCheckedAt: null, postingNote: '', ...over,
 });
 
 const resume = (over: Partial<Resume> = {}): Resume => ({
@@ -14,6 +15,51 @@ const aiResult: AIResult = {
   matchScore: 88, role: 'FE', company: 'Linear', matchedKeywords: [], missingKeywords: [],
   aiSuggestion: '', coverLetter: '', interviewQuestions: [], salaryRange: '', industry: '', seniority: '', culture: [],
 };
+
+
+describe('reducer — posting checks', () => {
+  const busy: State = { ...INITIAL, applications: [app({ id: 'a1' }), app({ id: 'a2' })] };
+
+  it('POSTING_CHECK_START marks ids in flight without duplicating them', () => {
+    const started = reducer(busy, { type: 'POSTING_CHECK_START', ids: ['a1', 'a2'] });
+    const again = reducer(started, { type: 'POSTING_CHECK_START', ids: ['a2'] });
+    expect(again.checkingPostingIds).toEqual(['a1', 'a2']);
+  });
+
+  it('POSTING_CHECK_START clears a previous error', () => {
+    const withError: State = { ...busy, postingCheckError: 'boom' };
+    expect(reducer(withError, { type: 'POSTING_CHECK_START', ids: ['a1'] }).postingCheckError).toBe('');
+  });
+
+  it('POSTING_CHECK_DONE writes the verdict onto the matching apps only', () => {
+    const started = reducer(busy, { type: 'POSTING_CHECK_START', ids: ['a1', 'a2'] });
+    const done = reducer(started, {
+      type: 'POSTING_CHECK_DONE',
+      results: [{ id: 'a1', status: 'removed', note: 'gone', checkedAt: '2026-06-22T12:00:00.000Z' }],
+    });
+    expect(done.applications.find(a => a.id === 'a1')).toMatchObject({
+      postingStatus: 'removed', postingNote: 'gone', postingCheckedAt: '2026-06-22T12:00:00.000Z',
+    });
+    expect(done.applications.find(a => a.id === 'a2')!.postingStatus).toBe('unknown');
+    expect(done.checkingPostingIds).toEqual(['a2']); // only the answered id clears
+  });
+
+  it('POSTING_CHECK_DONE ignores results for apps that are gone', () => {
+    const done = reducer(busy, {
+      type: 'POSTING_CHECK_DONE',
+      results: [{ id: 'deleted', status: 'expired', note: 'x', checkedAt: '2026-06-22T12:00:00.000Z' }],
+    });
+    expect(done.applications).toHaveLength(2);
+  });
+
+  it('POSTING_CHECK_FAIL clears the ids and surfaces a message', () => {
+    const started = reducer(busy, { type: 'POSTING_CHECK_START', ids: ['a1', 'a2'] });
+    const failed = reducer(started, { type: 'POSTING_CHECK_FAIL', ids: ['a1'], message: 'offline' });
+    expect(failed.checkingPostingIds).toEqual(['a2']);
+    expect(failed.postingCheckError).toBe('offline');
+    expect(failed.applications.every(a => a.postingStatus === 'unknown')).toBe(true);
+  });
+});
 
 describe('reducer', () => {
   it('HYDRATE loads payload and clears loading; onboarding = !onboarded', () => {

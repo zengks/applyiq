@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useStore } from '@/lib/store';
 import { Application, AppStatus } from '@/lib/types';
-import { getLogoColor, getInitial, getMatchColors, formatDeadline, deadlineColor } from '@/lib/utils';
+import { getLogoColor, getInitial, getMatchColors, formatDeadline, deadlineColor, POSTING_BADGES } from '@/lib/utils';
 
 const COLUMNS: { status: AppStatus; label: string; color: string }[] = [
   { status: 'saved',     label: 'Saved',        color: '#9ca3af' },
@@ -14,7 +14,7 @@ const COLUMNS: { status: AppStatus; label: string; color: string }[] = [
 ];
 
 export default function Applications() {
-  const { applications, darkMode, dispatch } = useStore();
+  const { applications, darkMode, dispatch, checkPostings, checkingPostings, checkingPostingIds, staleCount, postingCheckError } = useStore();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverCol, setDragOverCol] = useState<AppStatus | null>(null);
 
@@ -41,7 +41,27 @@ export default function Applications() {
   return (
     <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, height: '100%', animation: 'fadeUp 0.25s ease' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>Applications</h1>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>Applications</h1>
+          {staleCount > 0 && (
+            <p style={{ fontSize: 13, color: '#b45309', margin: '6px 0 0', fontWeight: 600 }}>
+              ⚠ {staleCount} posting{staleCount === 1 ? ' is' : 's are'} no longer live at the source.
+            </p>
+          )}
+          {postingCheckError && (
+            <p style={{ fontSize: 13, color: t.m, margin: '6px 0 0' }}>{postingCheckError}</p>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          onClick={() => checkPostings(applications.filter(a => a.url?.trim()).map(a => a.id))}
+          disabled={checkingPostings}
+          title="Re-check every saved posting against its source"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'transparent', color: t.m, border: `1px solid ${t.d}`, borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: checkingPostings ? 'default' : 'pointer', fontFamily: 'inherit', opacity: checkingPostings ? 0.6 : 1 }}
+        >
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10" /><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10" /></svg>
+          {checkingPostings ? 'Checking…' : 'Check links'}
+        </button>
         <button
           onClick={() => dispatch({ type: 'OPEN_ADD_JOB' })}
           style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
@@ -49,6 +69,7 @@ export default function Applications() {
           <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
           Add Job
         </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 16, overflowX: 'auto', paddingBottom: 16, flex: 1 }}>
@@ -78,6 +99,7 @@ export default function Applications() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1 }}>
                 {cards.map(app => (
                   <KanbanCard key={app.id} app={app} darkMode={darkMode} colColor={col.status === 'offer' ? '#059669' : undefined}
+                    checking={checkingPostingIds.includes(app.id)}
                     dragging={draggingId === app.id}
                     onDragStart={() => setDraggingId(app.id)}
                     onDragEnd={() => { setDraggingId(null); setDragOverCol(null); }}
@@ -96,8 +118,12 @@ export default function Applications() {
   );
 }
 
-function KanbanCard({ app, darkMode, colColor, dragging, onOpen, onDragStart, onDragEnd }: { app: Application; darkMode: boolean; colColor?: string; dragging: boolean; onOpen: () => void; onDragStart: () => void; onDragEnd: () => void }) {
+function KanbanCard({ app, darkMode, colColor, checking, dragging, onOpen, onDragStart, onDragEnd }: { app: Application; darkMode: boolean; colColor?: string; checking: boolean; dragging: boolean; onOpen: () => void; onDragStart: () => void; onDragEnd: () => void }) {
   const mc = getMatchColors(app.match);
+  // Settled jobs (offer / not selected) don't need a dead-link warning — matches
+  // what `stalePostings` counts.
+  const settled = app.status === 'offer' || app.status === 'rejected';
+  const posting = settled ? null : POSTING_BADGES[app.postingStatus];
   const cardBg = darkMode ? '#1c1b19' : '#ffffff';
   const border = darkMode ? 'rgba(255,255,255,0.07)' : '#ede9e4';
   const textP = darkMode ? '#f0ede9' : '#1a1917';
@@ -112,7 +138,7 @@ function KanbanCard({ app, darkMode, colColor, dragging, onOpen, onDragStart, on
       onClick={onOpen}
       style={{
         background: cardBg, borderRadius: 11, padding: 14, cursor: 'grab',
-        border: colColor ? `1.5px solid ${colColor}44` : `1px solid ${border}`,
+        border: posting ? `1.5px solid ${posting.border}` : colColor ? `1.5px solid ${colColor}44` : `1px solid ${border}`,
         boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
         opacity: dragging ? 0.4 : rejected ? 0.55 : 1,
         transition: 'transform 0.15s, box-shadow 0.15s, opacity 0.12s',
@@ -127,7 +153,18 @@ function KanbanCard({ app, darkMode, colColor, dragging, onOpen, onDragStart, on
         <span style={{ background: mc.bg, color: mc.text, fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20 }}>{app.match}%</span>
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, color: textP, marginBottom: 3, textDecoration: rejected ? 'line-through' : 'none' }}>{app.role}</div>
-      <div style={{ fontSize: 12, color: textM, marginBottom: app.deadline ? 8 : 0 }}>{app.company}</div>
+      <div style={{ fontSize: 12, color: textM, marginBottom: app.deadline || posting || checking ? 8 : 0 }}>{app.company}</div>
+      {posting && (
+        <div
+          title={app.postingNote || undefined}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: posting.bg, color: posting.text, border: `1px solid ${posting.border}`, fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 20, marginBottom: app.deadline ? 8 : 0, letterSpacing: '0.02em' }}
+        >
+          <span aria-hidden>{posting.icon}</span>{posting.label}
+        </div>
+      )}
+      {checking && !posting && (
+        <div style={{ fontSize: 10, fontWeight: 700, color: textM, marginBottom: app.deadline ? 8 : 0 }}>Checking link…</div>
+      )}
       {app.deadline && (
         <div style={{ fontSize: 11, fontWeight: 600, color: deadlineColor(app.deadline) }}>
           {formatDeadline(app.deadline)}

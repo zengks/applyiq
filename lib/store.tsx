@@ -5,8 +5,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from './supabase/client';
 import {
   Application, AIResult, Resume, ActiveView, ActiveTab, BillingCycle,
-  NewJobForm, AppStatus, Subscription, SubStatus,
+  NewJobForm, AppStatus, Subscription, SubStatus, PostingStatus, PostingCheckResult,
 } from './types';
+import { needsCheck, MAX_URLS_PER_CHECK } from './postingCheck';
 
 export interface State {
   loading: boolean;
@@ -35,6 +36,10 @@ export interface State {
   resumes: Resume[];
   coverCopied: boolean;
   subscription: Subscription | null;
+  /** Ids of postings whose link check is currently in flight. */
+  checkingPostingIds: string[];
+  /** Set when the last link check couldn't run at all (network/server error). */
+  postingCheckError: string;
 }
 
 interface HydratePayload {
@@ -79,7 +84,10 @@ export type Action =
   | { type: 'SAVE_AI_TO_BOARD' }
   | { type: 'SET_COVER_COPIED'; value: boolean }
   | { type: 'SET_DEFAULT_RESUME'; id: string }
-  | { type: 'ADD_RESUME'; resume: Resume };
+  | { type: 'ADD_RESUME'; resume: Resume }
+  | { type: 'POSTING_CHECK_START'; ids: string[] }
+  | { type: 'POSTING_CHECK_DONE'; results: PostingCheckResult[] }
+  | { type: 'POSTING_CHECK_FAIL'; ids: string[]; message: string };
 
 function emptyNewJob(): NewJobForm {
   return { company: '', role: '', url: '', status: 'saved', deadline: '', notes: '' };
@@ -112,6 +120,8 @@ export const INITIAL: State = {
   resumes: [],
   coverCopied: false,
   subscription: null,
+  checkingPostingIds: [],
+  postingCheckError: '',
 };
 
 export function reducer(state: State, action: Action): State {
@@ -167,12 +177,38 @@ export function reducer(state: State, action: Action): State {
         deadline: null,
         url: state.jobUrl,
         notes: '',
+        postingStatus: 'unknown',
+        postingCheckedAt: null,
+        postingNote: '',
       };
       return { ...state, applications: [newApp, ...state.applications], activeView: 'applications' };
     }
     case 'SET_COVER_COPIED': return { ...state, coverCopied: action.value };
     case 'SET_DEFAULT_RESUME': return { ...state, resumes: state.resumes.map(r => ({ ...r, isDefault: r.id === action.id })) };
     case 'ADD_RESUME': return { ...state, resumes: [action.resume, ...state.resumes] };
+    case 'POSTING_CHECK_START':
+      return {
+        ...state,
+        postingCheckError: '',
+        checkingPostingIds: [...new Set([...state.checkingPostingIds, ...action.ids])],
+      };
+    case 'POSTING_CHECK_DONE': {
+      const byId = new Map(action.results.map(r => [r.id, r]));
+      return {
+        ...state,
+        checkingPostingIds: state.checkingPostingIds.filter(id => !byId.has(id)),
+        applications: state.applications.map(a => {
+          const r = byId.get(a.id);
+          return r ? { ...a, postingStatus: r.status, postingNote: r.note, postingCheckedAt: r.checkedAt } : a;
+        }),
+      };
+    }
+    case 'POSTING_CHECK_FAIL':
+      return {
+        ...state,
+        checkingPostingIds: state.checkingPostingIds.filter(id => !action.ids.includes(id)),
+        postingCheckError: action.message,
+      };
     default: return state;
   }
 }
@@ -185,6 +221,7 @@ function appRow(a: Application, userId: string) {
   return {
     id: a.id, user_id: userId, company: a.company, role: a.role,
     status: a.status, match: a.match, deadline: a.deadline, url: a.url, notes: a.notes,
+    posting_status: a.postingStatus, posting_checked_at: a.postingCheckedAt, posting_note: a.postingNote,
   };
 }
 function resumeRow(r: Resume, userId: string) {
@@ -211,6 +248,13 @@ export async function persistAction(action: Action, state: State, supabase: Supa
         break;
       case 'DELETE_APP':
         await supabase.from('applications').delete().eq('id', action.id);
+        break;
+      case 'POSTING_CHECK_DONE':
+        await Promise.all(action.results.map(r =>
+          supabase.from('applications')
+            .update({ posting_status: r.status, posting_checked_at: r.checkedAt, posting_note: r.note })
+            .eq('id', r.id)
+        ));
         break;
       case 'ADD_RESUME': {
         const r = state.resumes[0];
@@ -250,6 +294,11 @@ export interface DerivedValues {
   showExpiredBanner: boolean;
   urgentCount: number;
   selectedApp: Application | null;
+  /** Saved jobs whose posting is gone or closed, newest-added first. */
+  stalePostings: Application[];
+  staleCount: number;
+  /** True while any link check is in flight. */
+  checkingPostings: boolean;
 }
 
 /** Pure derivation of subscription/trial/urgency values. `now` is injected for testability. */
@@ -265,6 +314,12 @@ export function deriveStoreValues(state: State, now: number): DerivedValues {
     const d = Math.ceil((new Date(a.deadline).getTime() - now) / 86400000);
     return d >= 0 && d <= 3;
   }).length;
+  // A closed posting only matters while the user might still act on it — once a
+  // job is an offer or a rejection, the dead link is just noise.
+  const stalePostings = state.applications.filter(
+    a => (a.postingStatus === 'expired' || a.postingStatus === 'removed')
+      && a.status !== 'offer' && a.status !== 'rejected',
+  );
   return {
     isPro,
     isTrialing,
@@ -274,12 +329,29 @@ export function deriveStoreValues(state: State, now: number): DerivedValues {
     showExpiredBanner: !state.loading && !isPro && !isTrialing,
     urgentCount,
     selectedApp: state.selectedAppId ? state.applications.find(a => a.id === state.selectedAppId) ?? null : null,
+    stalePostings,
+    staleCount: stalePostings.length,
+    checkingPostings: state.checkingPostingIds.length > 0,
   };
+}
+
+/**
+ * Which saved postings are worth re-checking right now: they have a URL, aren't
+ * already settled (offer / rejection), and haven't been checked in a day.
+ * Capped to what one request may carry.
+ */
+export function postingsDueForCheck(apps: Application[], now: number = Date.now()): string[] {
+  return apps
+    .filter(a => a.url?.trim() && a.status !== 'offer' && a.status !== 'rejected' && needsCheck(a.postingCheckedAt, now))
+    .slice(0, MAX_URLS_PER_CHECK)
+    .map(a => a.id);
 }
 
 interface Ctx extends State, DerivedValues {
   showPricingModal: boolean;
   dispatch: (action: Action) => void;
+  /** Re-checks the given postings (all due ones when omitted) against their source. */
+  checkPostings: (ids?: string[]) => Promise<void>;
 }
 
 const StoreCtx = createContext<Ctx | null>(null);
@@ -332,6 +404,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         applications: (appsRes.data ?? []).map((a): Application => ({
           id: a.id, company: a.company, role: a.role, status: a.status,
           match: a.match, deadline: a.deadline, url: a.url, notes: a.notes,
+          // Defaults keep the app working before the posting_status migration is applied.
+          postingStatus: (a.posting_status as PostingStatus) ?? 'unknown',
+          postingCheckedAt: a.posting_checked_at ?? null,
+          postingNote: a.posting_note ?? '',
         })),
         resumes: (resumesRes.data ?? []).map((r): Resume => ({
           id: r.id, name: r.name, updatedAt: (r.updated_at ?? '').slice(0, 10),
@@ -366,11 +442,50 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (userIdRef.current) void persistAction(action, next, supabase, userIdRef.current);
   }, [supabase]);
 
+  // Ask the server whether saved postings are still live. With no ids, checks
+  // everything that's due; skips anything already in flight.
+  const checkPostings = useCallback(async (ids?: string[]) => {
+    const current = stateRef.current;
+    if (!userIdRef.current) return;
+    const inFlight = new Set(current.checkingPostingIds);
+    const targets = (ids ?? postingsDueForCheck(current.applications))
+      .filter(id => !inFlight.has(id))
+      .slice(0, MAX_URLS_PER_CHECK);
+    if (targets.length === 0) return;
+
+    dispatch({ type: 'POSTING_CHECK_START', ids: targets });
+    try {
+      const res = await fetch('/api/posting-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: targets }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Check failed.');
+      dispatch({ type: 'POSTING_CHECK_DONE', results: data.results ?? [] });
+    } catch (err) {
+      console.error('Posting check failed:', err);
+      dispatch({
+        type: 'POSTING_CHECK_FAIL',
+        ids: targets,
+        message: "Couldn't check your job links just now. Try again in a moment.",
+      });
+    }
+  }, [dispatch]);
+
+  // Sweep stale postings once the user's data has loaded.
+  const swept = useRef(false);
+  useEffect(() => {
+    if (state.loading || swept.current) return;
+    swept.current = true;
+    void checkPostings();
+  }, [state.loading, checkPostings]);
+
   // eslint-disable-next-line react-hooks/purity -- time-based derived values, recomputed each render by design
   const derived = deriveStoreValues(state, Date.now());
 
   return (
-    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, ...derived }}>
+    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, checkPostings, ...derived }}>
       {children}
     </StoreCtx.Provider>
   );

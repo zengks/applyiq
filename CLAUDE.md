@@ -9,9 +9,8 @@ npm run dev     # Start dev server (http://localhost:3000)
 npm run build   # Production build
 npm run start   # Serve the production build (run after `npm run build`)
 npm run lint    # ESLint
+npm run test:run # Vitest (single run); `npm test` for watch mode
 ```
-
-There is no test suite.
 
 **Requires** a `.env.local` file with `ANTHROPIC_API_KEY=sk-...` (copy from `.env.local.example`). The API route constructs `new Anthropic()` with no arguments, so it reads the key implicitly from this env var.
 
@@ -31,6 +30,18 @@ All app state lives in a single React context (`StoreProvider`) powered by `useR
 ### AI analysis flow
 `components/views/AIAnalysis.tsx` → `POST /api/analyze` (body: **`jobUrl` (required)**, optional `jobDescription` excerpt, `resumeText`) → `app/api/analyze/route.ts` → Anthropic `claude-sonnet-4-6`. The route gives Claude the **`web_fetch_20260209` server tool** so the model fetches and reads the posting URL itself (Sonnet 4.6+ is required for that tool variant's dynamic filtering — this is why the model is no longer Haiku). It handles `pause_turn` by re-sending (bounded), then concatenates the response's text blocks and parses the JSON. The API route is the only place that touches the Anthropic SDK, keeping the key server-side. The prompt instructs the model to return raw JSON matching the `AIResult` shape; `parseAIResponse` (in `lib/ai.ts`) strips fences and falls back to extracting the first `{...}` block. The pasted `jobDescription` is an optional fallback (used to supplement when a page can't be fetched). **If you change the response fields, update both the prompt's JSON template in `route.ts` and the `AIResult` interface in `lib/types.ts` together.**
 
+### Saved-posting expiry detection
+Saved jobs are re-checked against their source so a dead link can't sit unnoticed on the board. `components/views/Applications.tsx` "Check links" (and a background sweep fired once per session from `StoreProvider`) → `POST /api/posting-status` with the ids to check → the route reads those rows' URLs **from the caller's own `applications` rows** (never a client-supplied URL — that would make it an open fetch proxy), fetches each with a browser UA and a 12s timeout, and classifies via `lib/postingCheck.ts`:
+
+- `removed` — 404/410, or a soft-404 page ("job not found") served with a 200.
+- `expired` — closed-role wording ("no longer accepting applications", "position has been filled"), or a schema.org `validThrough` date in the past.
+- `unknown` — blocked (401/403/429), 5xx, timeout, or a non-fetchable URL. **Inconclusive checks never turn into a warning** — a bot-blocking board must not look like a deleted job.
+- `active` — otherwise.
+
+`safeFetchUrl` rejects loopback/private/metadata hosts (SSRF guard). Page contents stay server-side; only the verdict is returned. Results land on `Application.postingStatus` / `postingCheckedAt` / `postingNote` via `POSTING_CHECK_DONE`, are written back to Supabase, and drive the indicators: an amber sidebar badge, a dismissible dashboard alert, a Kanban card badge, and a full explanation plus "Re-check" in the detail drawer. `deriveStoreValues` hides all of it for `offer`/`rejected` jobs — a settled job's dead link is just noise. Re-checks are due after `CHECK_TTL_MS` (24h), max `MAX_URLS_PER_CHECK` (25) per request.
+
+**Requires migration `supabase/migrations/0003_posting_status.sql`.** Until it's applied the app still works — postings hydrate as `unknown` and the write-back fails silently.
+
 ### Key files
 | File | Purpose |
 |------|---------|
@@ -38,6 +49,8 @@ All app state lives in a single React context (`StoreProvider`) powered by `useR
 | `lib/store.tsx` | Full state reducer + `StoreProvider` + `useStore` hook |
 | `lib/utils.ts` | Color helpers, status maps, date formatters |
 | `app/api/analyze/route.ts` | Claude API proxy (POST) |
+| `lib/postingCheck.ts` | Pure link-check classification (expiry phrases, SSRF guard, TTL) |
+| `app/api/posting-status/route.ts` | Fetches saved postings and returns their verdicts (POST) |
 | `components/Sidebar.tsx` | 240px nav sidebar with dark mode toggle |
 | `components/TrialBanner.tsx` | Sticky top banner (trial active / expired) |
 | `components/views/` | Dashboard, Applications (Kanban), AIAnalysis, ResumeVault, Analytics |

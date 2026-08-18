@@ -2,7 +2,7 @@
 
 import { useStore } from '@/lib/store';
 import { AppStatus } from '@/lib/types';
-import { STATUS_LABELS, getLogoColor, getInitial, getMatchColors, deadlineColor, formatDeadline } from '@/lib/utils';
+import { STATUS_LABELS, getLogoColor, getInitial, getMatchColors, deadlineColor, formatDeadline, POSTING_BADGES, postingHeadline, relativeTime } from '@/lib/utils';
 
 const STATUSES: AppStatus[] = ['saved', 'applied', 'interview', 'offer', 'rejected'];
 
@@ -15,7 +15,7 @@ const STATUS_ACTIVE_STYLES: Record<AppStatus, { bg: string; color: string; borde
 };
 
 export default function DetailDrawer() {
-  const { selectedApp, showDetailDrawer, darkMode, dispatch } = useStore();
+  const { selectedApp, showDetailDrawer, darkMode, dispatch, checkPostings, checkingPostingIds } = useStore();
 
   if (!showDetailDrawer || !selectedApp) return null;
 
@@ -31,6 +31,8 @@ export default function DetailDrawer() {
   };
 
   const mc = getMatchColors(selectedApp.match);
+  const checking = checkingPostingIds.includes(selectedApp.id);
+  const alert = POSTING_BADGES[selectedApp.postingStatus];
 
   return (
     <>
@@ -105,13 +107,45 @@ export default function DetailDrawer() {
             </div>
           </div>
 
-          {/* URL */}
+          {/* URL + posting health */}
           {selectedApp.url && (
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: t.m, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Job Posting</div>
               <a href={selectedApp.url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, color: '#ec4899', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const, display: 'block' }}>
                 {selectedApp.url}
               </a>
+
+              {alert && (
+                <div style={{ marginTop: 12, padding: '12px 14px', borderRadius: 10, background: alert.bg, border: `1px solid ${alert.border}` }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: alert.text, display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <span aria-hidden>{alert.icon}</span>{postingHeadline(selectedApp.postingStatus)}
+                  </div>
+                  <div style={{ fontSize: 12, color: alert.text, opacity: 0.9, marginTop: 5, lineHeight: 1.5 }}>
+                    {selectedApp.postingNote} You can still keep it on your board for your records, or delete it.
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <span style={{ fontSize: 11, color: t.m }}>
+                  {checking
+                    ? 'Checking the link…'
+                    : selectedApp.postingStatus === 'unknown' && selectedApp.postingCheckedAt
+                      ? `Couldn't verify · checked ${relativeTime(selectedApp.postingCheckedAt)}`
+                      : selectedApp.postingStatus === 'active'
+                        ? `Live at last check · ${relativeTime(selectedApp.postingCheckedAt)}`
+                        : selectedApp.postingCheckedAt
+                          ? `Checked ${relativeTime(selectedApp.postingCheckedAt)}`
+                          : 'Not checked yet'}
+                </span>
+                <button
+                  onClick={() => checkPostings([selectedApp.id])}
+                  disabled={checking}
+                  style={{ padding: '4px 10px', borderRadius: 7, border: `1px solid ${t.d}`, background: 'transparent', color: t.m, fontSize: 11, fontWeight: 700, cursor: checking ? 'default' : 'pointer', fontFamily: 'inherit', opacity: checking ? 0.6 : 1 }}
+                >
+                  {checking ? 'Checking…' : 'Re-check'}
+                </button>
+              </div>
             </div>
           )}
 

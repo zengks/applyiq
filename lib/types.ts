@@ -1,5 +1,14 @@
 export type AppStatus = 'saved' | 'applied' | 'interview' | 'offer' | 'rejected';
 
+/**
+ * Health of a saved job posting's URL, as of the last link check.
+ * - `active`  — the posting still loads and shows no expiry wording.
+ * - `expired` — the page is up but says the role is closed/filled/expired.
+ * - `removed` — the page is gone (404/410 or a soft "job not found" page).
+ * - `unknown` — never checked, or the check was inconclusive (blocked, timeout).
+ */
+export type PostingStatus = 'active' | 'expired' | 'removed' | 'unknown';
+
 export interface Application {
   id: string;
   company: string;
@@ -9,6 +18,20 @@ export interface Application {
   deadline: string | null;
   url: string;
   notes: string;
+  /** Result of the last posting-link check. */
+  postingStatus: PostingStatus;
+  /** ISO timestamp of the last check, or null if never checked. */
+  postingCheckedAt: string | null;
+  /** Human-readable reason for `postingStatus`, shown in the UI. */
+  postingNote: string;
+}
+
+/** One posting-check outcome, as returned by `POST /api/posting-status`. */
+export interface PostingCheckResult {
+  id: string;
+  status: PostingStatus;
+  note: string;
+  checkedAt: string;
 }
 
 /** Cost metadata attached to an analysis response by the server (not the model). */

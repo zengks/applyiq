@@ -105,7 +105,7 @@ function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: N
 }
 
 export default function Sidebar() {
-  const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, showTrialBanner, showExpiredBanner, dispatch } = useStore();
+  const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, staleCount, showTrialBanner, showExpiredBanner, dispatch } = useStore();
 
   const selectView = (view: ActiveView) => dispatch({ type: 'SET_VIEW', view });
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -143,8 +143,15 @@ export default function Sidebar() {
       <nav style={{ flex: 1, padding: '14px 10px', overflowY: 'auto' }}>
         <NavItem {...navProps} icon={<DashIcon />} label="Dashboard" view="dashboard" />
         <NavItem {...navProps} icon={<BriefcaseIcon />} label="Applications" view="applications"
-          badge={urgentCount > 0 ? (
-            <span style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, minWidth: 18, textAlign: 'center' }}>{urgentCount}</span>
+          badge={(urgentCount > 0 || staleCount > 0) ? (
+            <span style={{ display: 'flex', gap: 4 }}>
+              {staleCount > 0 && (
+                <span title={`${staleCount} posting${staleCount === 1 ? '' : 's'} no longer live`} style={{ background: '#f59e0b', color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, minWidth: 18, textAlign: 'center' }}>⚠{staleCount}</span>
+              )}
+              {urgentCount > 0 && (
+                <span title={`${urgentCount} deadline${urgentCount === 1 ? '' : 's'} within 3 days`} style={{ background: '#ef4444', color: '#fff', fontSize: 9, fontWeight: 800, padding: '2px 7px', borderRadius: 20, minWidth: 18, textAlign: 'center' }}>{urgentCount}</span>
+              )}
+            </span>
           ) : undefined}
         />
         <NavItem {...navProps} icon={<AIIcon />} label="AI Analysis" view="ai"

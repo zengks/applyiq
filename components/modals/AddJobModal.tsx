@@ -4,7 +4,7 @@ import { useStore } from '@/lib/store';
 import { Application, AppStatus } from '@/lib/types';
 
 export default function AddJobModal() {
-  const { showAddJobModal, newJob, darkMode, dispatch } = useStore();
+  const { showAddJobModal, newJob, darkMode, dispatch, checkPostings } = useStore();
 
   if (!showAddJobModal) return null;
 
@@ -36,9 +36,15 @@ export default function AddJobModal() {
       deadline: newJob.deadline || null,
       url: newJob.url,
       notes: newJob.notes,
+      postingStatus: 'unknown',
+      postingCheckedAt: null,
+      postingNote: '',
     };
     dispatch({ type: 'ADD_APP', app });
     dispatch({ type: 'CLOSE_ADD_JOB' });
+    // Verify the link right away so a dead posting is flagged before the user
+    // starts working on it.
+    if (app.url.trim()) void checkPostings([app.id]);
   }
 
   const set = (field: keyof typeof newJob) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>

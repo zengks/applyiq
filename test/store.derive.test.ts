@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { deriveStoreValues, INITIAL, type State } from '@/lib/store';
+import { deriveStoreValues, postingsDueForCheck, INITIAL, type State } from '@/lib/store';
 import type { Application, Subscription } from '@/lib/types';
 
 const NOW = new Date('2026-06-22T12:00:00Z').getTime();
@@ -9,8 +9,9 @@ const sub = (over: Partial<Subscription> = {}): Subscription => ({
   status: 'trialing', trialEndsAt: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, priceId: null, ...over,
 });
 
-const app = (deadline: string | null): Application => ({
+const app = (deadline: string | null, over: Partial<Application> = {}): Application => ({
   id: Math.random().toString(), company: 'C', role: 'R', status: 'saved', match: 0, deadline, url: '', notes: '',
+  postingStatus: 'unknown', postingCheckedAt: null, postingNote: '', ...over,
 });
 
 describe('deriveStoreValues', () => {
@@ -61,5 +62,51 @@ describe('deriveStoreValues', () => {
     expect(deriveStoreValues(state, NOW).selectedApp).toBe(a);
     expect(deriveStoreValues({ ...state, selectedAppId: 'nope' }, NOW).selectedApp).toBeNull();
     expect(deriveStoreValues({ ...state, selectedAppId: null }, NOW).selectedApp).toBeNull();
+  });
+});
+
+describe('stale postings', () => {
+  it('counts expired and removed postings that are still actionable', () => {
+    const state: State = {
+      ...INITIAL,
+      applications: [
+        app(null, { id: 'ok', postingStatus: 'active' }),
+        app(null, { id: 'unchecked' }),
+        app(null, { id: 'gone', postingStatus: 'removed' }),
+        app(null, { id: 'closed', status: 'applied', postingStatus: 'expired' }),
+        app(null, { id: 'won', status: 'offer', postingStatus: 'removed' }),      // settled → ignored
+        app(null, { id: 'lost', status: 'rejected', postingStatus: 'expired' }),  // settled → ignored
+      ],
+    };
+    const d = deriveStoreValues(state, NOW);
+    expect(d.stalePostings.map(a => a.id)).toEqual(['gone', 'closed']);
+    expect(d.staleCount).toBe(2);
+  });
+
+  it('checkingPostings tracks in-flight ids', () => {
+    expect(deriveStoreValues(INITIAL, NOW).checkingPostings).toBe(false);
+    expect(deriveStoreValues({ ...INITIAL, checkingPostingIds: ['a1'] }, NOW).checkingPostings).toBe(true);
+  });
+});
+
+describe('postingsDueForCheck', () => {
+  const fresh = new Date(NOW - 60_000).toISOString();
+  const old = new Date(NOW - 2 * DAY).toISOString();
+
+  it('picks postings with a URL that are stale and still actionable', () => {
+    const apps = [
+      app(null, { id: 'no-url', url: '' }),
+      app(null, { id: 'fresh', url: 'https://x.co/1', postingCheckedAt: fresh }),
+      app(null, { id: 'stale', url: 'https://x.co/2', postingCheckedAt: old }),
+      app(null, { id: 'never', url: 'https://x.co/3' }),
+      app(null, { id: 'won', url: 'https://x.co/4', status: 'offer' }),
+      app(null, { id: 'lost', url: 'https://x.co/5', status: 'rejected' }),
+    ];
+    expect(postingsDueForCheck(apps, NOW)).toEqual(['stale', 'never']);
+  });
+
+  it('caps the batch at the request limit', () => {
+    const many = Array.from({ length: 40 }, (_, i) => app(null, { id: `a${i}`, url: 'https://x.co/j' }));
+    expect(postingsDueForCheck(many, NOW)).toHaveLength(25);
   });
 });

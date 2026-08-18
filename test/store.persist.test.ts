@@ -15,13 +15,31 @@ function makeSupabase() {
 
 const UID = 'user-123';
 const app = (over: Partial<Application> = {}): Application => ({
-  id: 'a1', company: 'Stripe', role: 'FE', status: 'saved', match: 80, deadline: null, url: '', notes: '', ...over,
+  id: 'a1', company: 'Stripe', role: 'FE', status: 'saved', match: 80, deadline: null, url: '', notes: '',
+  postingStatus: 'unknown', postingCheckedAt: null, postingNote: '', ...over,
 });
 const resume = (over: Partial<Resume> = {}): Resume => ({
   id: 'r1', name: 'R', updatedAt: '2026-06-01', jobsMatched: 0, atsScore: 70, isDefault: true, text: 'cv', filePath: 'user-123/x.pdf', ...over,
 });
 
 describe('persistAction', () => {
+  it('POSTING_CHECK_DONE writes each verdict back to its row', async () => {
+    const m = makeSupabase();
+    const state: State = { ...INITIAL, applications: [app({ id: 'a1' }), app({ id: 'a2' })] };
+    await persistAction({
+      type: 'POSTING_CHECK_DONE',
+      results: [
+        { id: 'a1', status: 'removed', note: 'gone', checkedAt: '2026-06-22T12:00:00.000Z' },
+        { id: 'a2', status: 'active', note: 'live', checkedAt: '2026-06-22T12:00:00.000Z' },
+      ],
+    }, state, m.client, UID);
+    expect(m.from).toHaveBeenCalledWith('applications');
+    expect(m.update).toHaveBeenCalledWith({ posting_status: 'removed', posting_checked_at: '2026-06-22T12:00:00.000Z', posting_note: 'gone' });
+    expect(m.update).toHaveBeenCalledWith({ posting_status: 'active', posting_checked_at: '2026-06-22T12:00:00.000Z', posting_note: 'live' });
+    expect(m.eq).toHaveBeenCalledWith('id', 'a1');
+    expect(m.eq).toHaveBeenCalledWith('id', 'a2');
+  });
+
   it('ADD_APP inserts the snake-cased row from state.applications[0]', async () => {
     const m = makeSupabase();
     const state: State = { ...INITIAL, applications: [app()] };
