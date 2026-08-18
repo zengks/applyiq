@@ -20,7 +20,7 @@ describe('reducer', () => {
     const next = reducer(INITIAL, {
       type: 'HYDRATE',
       payload: {
-        profileName: 'Alex', profileTitle: 'Dev', resumeText: 'cv', darkMode: true,
+        email: 'alex@example.com', profileName: 'Alex', profileTitle: 'Dev', resumeText: 'cv', darkMode: true,
         billingCycle: 'monthly', onboarded: false, applications: [app()], resumes: [resume()], subscription: null,
       },
     });
