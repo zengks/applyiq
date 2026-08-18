@@ -12,7 +12,7 @@
     "seed:premium": "node --env-file=.env.local scripts/seed-premium.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.105.0",
+    "@anthropic-ai/sdk": "^0.117.1",
     "@stripe/stripe-js": "^9.13.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
