@@ -29,31 +29,47 @@ export default function LoginPage() {
   }
 
   return (
-    <main style={s.page}>
-      <form style={s.card} onSubmit={handleSubmit}>
-        <div style={s.brand}>Welcome back</div>
-        <div style={s.subtitle}>Sign in to your ApplyIQ account</div>
+    <main className="auth-page" style={s.page}>
+      <form className="auth-card" style={s.card} onSubmit={handleSubmit}>
+        <div className="auth-brand" style={s.brand}>Welcome back</div>
+        <div className="auth-subtitle" style={s.subtitle}>Sign in to your ApplyIQ account</div>
 
-        {error && <div style={s.error}>{error}</div>}
+        {error && <div style={s.error} role="alert">{error}</div>}
 
         <label style={s.label} htmlFor="email">Email</label>
         <input
-          id="email" type="email" required style={s.input} value={email}
+          id="email" type="email" required className="auth-input" style={s.input} value={email}
           onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com"
+          // Mobile keyboards: the email layout (with @ and .), no auto-capitalising
+          // or autocorrecting an address, and a password manager that can fill it.
+          inputMode="email"
+          autoComplete="email"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          enterKeyHint="next"
+          aria-invalid={error ? true : undefined}
         />
 
         <label style={s.label} htmlFor="password">Password</label>
         <input
-          id="password" type="password" required style={s.input} value={password}
+          id="password" type="password" required className="auth-input" style={s.input} value={password}
           onChange={(e) => setPassword(e.target.value)} placeholder="••••••••"
+          autoComplete="current-password"
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
+          // Labels the keyboard's action key "Go" instead of "return".
+          enterKeyHint="go"
+          aria-invalid={error ? true : undefined}
         />
 
-        <button type="submit" style={{ ...s.button, opacity: loading ? 0.7 : 1 }} disabled={loading}>
+        <button type="submit" className="auth-button" style={{ ...s.button, opacity: loading ? 0.7 : 1 }} disabled={loading}>
           {loading ? 'Signing in…' : 'Sign in'}
         </button>
 
         <div style={s.footer}>
-          New to ApplyIQ? <Link href="/register" style={s.link}>Create an account</Link>
+          New to ApplyIQ? <Link href="/register" className="auth-link" style={s.link}>Create an account</Link>
         </div>
       </form>
     </main>

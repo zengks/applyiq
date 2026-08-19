@@ -104,3 +104,80 @@ body.dark {
 .animate-scaleIn  { animation: scaleIn 0.15s ease both; }
 .animate-spin-ai  { animation: spin 0.8s linear infinite; }
 .animate-pulse-fade { animation: pulse-fade 1.5s ease infinite; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Auth screens — mobile / touch adaptations (currently applied by /login only)
+
+   The desktop look lives in inline styles (components/auth/authStyles.ts), which
+   cannot express media queries. These rules carry the responsive half, so they
+   need !important to beat the element's own style attribute. Desktop pointer
+   devices at >480px match none of these blocks and render exactly as before.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+/* The app shell sets `body { overflow: hidden }` for the SPA. An auth screen has
+   to stay scrollable instead: with the on-screen keyboard open the viewport can
+   be shorter than the card. */
+.auth-page {
+  /* !important is required: a normal declaration loses to the element's inline
+     `min-height: 100vh`. On iOS, 100vh is the *large* viewport height (the area
+     behind the collapsing URL bar counts), so the page ends up taller than what
+     is actually visible. Browsers without dvh drop this and keep the inline 100vh. */
+  min-height: 100dvh !important;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  /* Never let a fixed-width child push the page sideways. */
+  overflow-x: hidden;
+}
+
+/* Auto margins center the card while still allowing it to overflow *and scroll*;
+   `align-items: center` alone would clip the top of a card taller than the
+   viewport, hiding the email field behind the keyboard. */
+.auth-card {
+  margin-block: auto;
+}
+
+@media (max-width: 480px) {
+  .auth-page {
+    /* Respect notches/home indicators — viewportFit: 'cover' makes these real. */
+    padding: calc(16px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right))
+             calc(16px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left)) !important;
+    align-items: flex-start !important;
+  }
+
+  .auth-card {
+    /* 36px/32px of card padding plus the page gutter eats a 360px screen alive. */
+    padding: 28px 20px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.05) !important;
+  }
+
+  .auth-brand    { font-size: 24px !important; }
+  .auth-subtitle { margin-bottom: 24px !important; }
+}
+
+/* Touch devices of any width — phones and tablets alike. */
+@media (pointer: coarse) {
+  .auth-input {
+    /* iOS Safari force-zooms the page when a focused input is under 16px. The
+       zoom then sticks, leaving the layout off-centre. */
+    font-size: 16px !important;
+    padding: 13px 14px !important;
+  }
+
+  .auth-button {
+    min-height: 48px; /* comfortably over the 44px minimum touch target */
+    touch-action: manipulation; /* drops the legacy 300ms double-tap delay */
+  }
+
+  /* Give the footer link a real tap target instead of a 14px line of text. */
+  .auth-link {
+    display: inline-block;
+    padding: 8px 4px;
+  }
+
+  .auth-input,
+  .auth-button,
+  .auth-link {
+    -webkit-tap-highlight-color: rgba(236, 72, 153, 0.12);
+  }
+}
