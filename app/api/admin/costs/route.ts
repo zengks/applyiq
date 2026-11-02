@@ -23,6 +23,6 @@ export async function GET() {
     return NextResponse.json(await getCostDashboard());
   } catch (err) {
     console.error('[cost] dashboard error:', err);
-    return NextResponse.json({ error: 'Run the 0002_api_usage migration first.' }, { status: 500 });
+    return NextResponse.json({ error: 'Usage reporting is temporarily unavailable.' }, { status: 503 });
   }
 }

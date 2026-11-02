@@ -2,9 +2,11 @@
 
 import { useStore } from '@/lib/store';
 import { Application, AppStatus } from '@/lib/types';
+import { useState } from 'react';
 
 export default function AddJobModal() {
   const { showAddJobModal, newJob, darkMode, dispatch, checkPostings } = useStore();
+  const [submitting, setSubmitting] = useState(false);
 
   if (!showAddJobModal) return null;
 
@@ -25,10 +27,12 @@ export default function AddJobModal() {
   };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: t.m, marginBottom: 6, display: 'block', textTransform: 'uppercase' as const, letterSpacing: '0.06em' };
 
-  function handleSubmit() {
-    if (!newJob.company.trim() || !newJob.role.trim()) return;
+  async function handleSubmit() {
+    if (submitting || !newJob.company.trim() || !newJob.role.trim()) return;
+    setSubmitting(true);
     const app: Application = {
       id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
       company: newJob.company.trim(),
       role: newJob.role.trim(),
       status: newJob.status as AppStatus,
@@ -40,11 +44,12 @@ export default function AddJobModal() {
       postingCheckedAt: null,
       postingNote: '',
     };
-    dispatch({ type: 'ADD_APP', app });
+    const saved = await dispatch({ type: 'ADD_APP', app });
+    setSubmitting(false);
     dispatch({ type: 'CLOSE_ADD_JOB' });
     // Verify the link right away so a dead posting is flagged before the user
     // starts working on it.
-    if (app.url.trim()) void checkPostings([app.id]);
+    if (saved && app.url.trim()) void checkPostings([app.id]);
   }
 
   const set = (field: keyof typeof newJob) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
@@ -55,7 +60,7 @@ export default function AddJobModal() {
       <div onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
       <div style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-        width: 520, background: t.card, borderRadius: 16, padding: 28, zIndex: 60,
+        width: 520, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', background: t.card, borderRadius: 16, padding: 28, zIndex: 60,
         boxShadow: '0 24px 64px rgba(0,0,0,0.18)', animation: 'scaleIn 0.15s ease',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
@@ -106,10 +111,10 @@ export default function AddJobModal() {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={!newJob.company.trim() || !newJob.role.trim()}
+            disabled={submitting || !newJob.company.trim() || !newJob.role.trim()}
             style={{ padding: '10px 22px', background: newJob.company.trim() && newJob.role.trim() ? '#ec4899' : '#e5e7eb', color: newJob.company.trim() && newJob.role.trim() ? '#fff' : '#9ca3af', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: newJob.company.trim() && newJob.role.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
           >
-            Add Application
+            {submitting ? 'Saving…' : 'Add Application'}
           </button>
         </div>
       </div>

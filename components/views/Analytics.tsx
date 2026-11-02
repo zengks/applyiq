@@ -2,28 +2,26 @@
 
 import { useStore } from '@/lib/store';
 import { BarChart, Bar, Cell, ResponsiveContainer, Tooltip, PieChart, Pie } from 'recharts';
+import { STATUS_COLORS, STATUS_LABELS } from '@/lib/utils';
+import type { AppStatus } from '@/lib/types';
 
 const WEEK_DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const WEEK_DATA = [2, 4, 1, 6, 3, 0, 2];
-const PEAK = Math.max(...WEEK_DATA);
-
-const STATUS_PIE = [
-  { name: 'Applied',   value: 18, color: '#3b82f6' },
-  { name: 'Interview', value: 8,  color: '#f59e0b' },
-  { name: 'Offer',     value: 2,  color: '#059669' },
-  { name: 'Rejected',  value: 12, color: '#ef4444' },
-  { name: 'Saved',     value: 6,  color: '#9ca3af' },
-];
-
-const FUNNEL = [
-  { label: 'Applied',   count: 46, pct: 100, color: '#3b82f6' },
-  { label: 'Response',  count: 18, pct: 39,  color: '#8b5cf6' },
-  { label: 'Interview', count: 8,  pct: 17,  color: '#f59e0b' },
-  { label: 'Offer',     count: 2,  pct: 4,   color: '#059669' },
-];
 
 export default function Analytics() {
   const { applications, darkMode } = useStore();
+  const weekStart = new Date();
+  weekStart.setHours(0, 0, 0, 0);
+  weekStart.setDate(weekStart.getDate() - ((weekStart.getDay() + 6) % 7));
+  const weekData = WEEK_DAYS.map((day, i) => {
+    const start = new Date(weekStart); start.setDate(start.getDate() + i);
+    const end = new Date(start); end.setDate(end.getDate() + 1);
+    return { day, count: applications.filter(a => a.createdAt && new Date(a.createdAt) >= start && new Date(a.createdAt) < end).length };
+  });
+  const peak = Math.max(...weekData.map(d => d.count));
+  const statuses = (Object.keys(STATUS_LABELS) as AppStatus[]).map(status => ({
+    name: STATUS_LABELS[status], value: applications.filter(a => a.status === status).length, color: STATUS_COLORS[status].text,
+  }));
+  const pipeline = statuses.map(s => ({ label: s.name, count: s.value, color: s.color, pct: applications.length ? Math.round(s.value / applications.length * 100) : 0 }));
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -41,33 +39,33 @@ export default function Analytics() {
   const avgMatch = applications.length ? Math.round(applications.reduce((s, a) => s + a.match, 0) / applications.length) : 0;
 
   return (
-    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeUp 0.25s ease' }}>
+    <div className="workspace-view" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeUp 0.25s ease' }}>
       <div>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>Analytics</h1>
         <p style={{ fontSize: 14, color: t.s, margin: '6px 0 0' }}>Your job search performance at a glance.</p>
       </div>
 
       {/* 3 stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
-        <AnalyticCard label="Total Sent" value={totalSent} trend="+3 this week" trendUp darkMode={darkMode} pct={Math.min(100, totalSent * 2)} />
-        <AnalyticCard label="Response Rate" value={`${responseRate}%`} trend={responseRate > 30 ? '↑ Above avg' : '↓ Keep applying'} trendUp={responseRate > 30} darkMode={darkMode} pct={responseRate} />
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+        <AnalyticCard label="Total Sent" value={totalSent} trend="Across your saved records" trendUp darkMode={darkMode} pct={applications.length ? totalSent / applications.length * 100 : 0} />
+        <AnalyticCard label="Recorded Responses" value={`${responseRate}%`} trend="Interview, offer, or not selected" trendUp darkMode={darkMode} pct={responseRate} />
         <AnalyticCard label="Avg Match Score" value={`${avgMatch}%`} trend="Across all apps" trendUp={avgMatch >= 70} darkMode={darkMode} pct={avgMatch} />
       </div>
 
       {/* Charts grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
         {/* Weekly bar chart */}
         <div style={cardStyle}>
-          <h2 style={{ fontSize: 15, fontWeight: 700, color: t.p, margin: '0 0 18px' }}>Applications This Week</h2>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: t.p, margin: '0 0 18px' }}>Jobs Added This Week</h2>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={WEEK_DAYS.map((day, i) => ({ day, count: WEEK_DATA[i] }))} barSize={28}>
+            <BarChart data={weekData} barSize={28}>
               <Tooltip
                 contentStyle={{ background: t.card, border: `1px solid ${t.d}`, borderRadius: 8, fontSize: 12, color: t.p }}
                 cursor={{ fill: darkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)' }}
               />
               <Bar dataKey="count" radius={[4, 4, 0, 0]}>
                 {WEEK_DAYS.map((_, i) => (
-                  <Cell key={i} fill={WEEK_DATA[i] === PEAK ? '#ec4899' : '#fce7f3'} />
+                  <Cell key={i} fill={weekData[i].count === peak ? '#ec4899' : '#fce7f3'} />
                 ))}
               </Bar>
             </BarChart>
@@ -79,12 +77,12 @@ export default function Analytics() {
           <h2 style={{ fontSize: 15, fontWeight: 700, color: t.p, margin: '0 0 18px' }}>Status Breakdown</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <PieChart width={140} height={140}>
-              <Pie data={STATUS_PIE} cx={65} cy={65} innerRadius={42} outerRadius={64} dataKey="value" strokeWidth={2} stroke={t.card}>
-                {STATUS_PIE.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+              <Pie data={statuses} cx={65} cy={65} innerRadius={42} outerRadius={64} dataKey="value" strokeWidth={2} stroke={t.card}>
+                {statuses.map((entry, i) => <Cell key={i} fill={entry.color} />)}
               </Pie>
             </PieChart>
             <div style={{ flex: 1 }}>
-              {STATUS_PIE.map(s => (
+              {statuses.map(s => (
                 <div key={s.name} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <div style={{ width: 8, height: 8, borderRadius: '50%', background: s.color }} />
@@ -100,9 +98,9 @@ export default function Analytics() {
 
       {/* Funnel */}
       <div style={cardStyle}>
-        <h2 style={{ fontSize: 15, fontWeight: 700, color: t.p, margin: '0 0 18px' }}>Application Funnel</h2>
+        <h2 style={{ fontSize: 15, fontWeight: 700, color: t.p, margin: '0 0 18px' }}>Current Pipeline</h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {FUNNEL.map(row => (
+          {pipeline.map(row => (
             <div key={row.label} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 80, fontSize: 12, fontWeight: 600, color: t.s }}>{row.label}</div>
               <div style={{ flex: 1, height: 24, background: t.inner, borderRadius: 6, overflow: 'hidden' }}>

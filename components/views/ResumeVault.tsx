@@ -43,7 +43,7 @@ export default function ResumeVault() {
         name: file.name.replace(/\.[^.]+$/, ''),
         updatedAt: new Date().toISOString().split('T')[0],
         jobsMatched: 0,
-        atsScore: Math.floor(Math.random() * 30) + 60,
+        atsScore: 0,
         isDefault: resumes.length === 0,
         text: data.text || '',
         filePath: data.filePath || null,
@@ -57,7 +57,7 @@ export default function ResumeVault() {
   }
 
   return (
-    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, animation: 'fadeUp 0.25s ease' }}>
+    <div className="workspace-view" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, animation: 'fadeUp 0.25s ease' }}>
       <div>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>Resume Vault</h1>
         <p style={{ fontSize: 14, color: t.s, margin: '6px 0 0' }}>Manage your resume versions. Set one as default for AI analysis.</p>
@@ -100,7 +100,7 @@ export default function ResumeVault() {
       </div>
 
       {/* Resume grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
         {resumes.map(resume => (
           <ResumeCard key={resume.id} resume={resume} darkMode={darkMode}
             onSetDefault={() => dispatch({ type: 'SET_DEFAULT_RESUME', id: resume.id })}
@@ -153,14 +153,14 @@ function ResumeCard({ resume, darkMode, onSetDefault }: { resume: Resume; darkMo
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
         <div style={{ background: inner, borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
           <div style={{ fontSize: 20, fontWeight: 800, color: textP }}>{resume.jobsMatched}</div>
           <div style={{ fontSize: 10, fontWeight: 700, color: textM, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Jobs Matched</div>
         </div>
         <div style={{ background: inner, borderRadius: 8, padding: '10px 12px', textAlign: 'center' }}>
-          <div style={{ fontSize: 20, fontWeight: 800, color: resume.atsScore >= 80 ? '#059669' : resume.atsScore >= 65 ? '#d97706' : '#ef4444' }}>{resume.atsScore}%</div>
-          <div style={{ fontSize: 10, fontWeight: 700, color: textM, textTransform: 'uppercase', letterSpacing: '0.04em' }}>ATS Score</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: textM }}>—</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: textM }}>Not scored</div>
         </div>
       </div>
 

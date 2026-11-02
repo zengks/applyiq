@@ -17,8 +17,12 @@ if (!URL || !SERVICE_KEY) {
   process.exit(1);
 }
 
-const EMAIL = 'premium@applyiq.test';
-const PASSWORD = 'Premium123!';
+const EMAIL = process.env.SEED_TEST_EMAIL ?? 'premium@applyiq.test';
+const PASSWORD = process.env.SEED_TEST_PASSWORD;
+const local = ['localhost', '127.0.0.1', '[::1]'].includes(new globalThis.URL(URL).hostname);
+if (!PASSWORD || PASSWORD.length < 20) throw new Error('Provide a unique SEED_TEST_PASSWORD with at least 20 characters.');
+if (!local && process.env.ALLOW_REMOTE_TEST_SEED !== 'yes') throw new Error('Remote seeding is disabled. Use a dedicated test project and explicitly set ALLOW_REMOTE_TEST_SEED=yes.');
+if (!process.env.STRIPE_SECRET_KEY?.startsWith('sk_test_')) throw new Error('Seeding requires Stripe test-mode configuration.');
 
 const admin = createClient(URL, SERVICE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },
@@ -90,7 +94,7 @@ async function main() {
   console.log('  PREMIUM TEST ACCOUNT READY');
   console.log('  URL:      ' + (process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000') + '/login');
   console.log('  Email:    ' + EMAIL);
-  console.log('  Password: ' + PASSWORD);
+  console.log('  Password: the unique value supplied in SEED_TEST_PASSWORD (not logged).');
   console.log('────────────────────────────────────────');
 }
 

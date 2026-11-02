@@ -39,7 +39,7 @@ export default function Applications() {
   };
 
   return (
-    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, height: '100%', animation: 'fadeUp 0.25s ease' }}>
+    <div className="workspace-view" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, height: '100%', animation: 'fadeUp 0.25s ease' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>Applications</h1>

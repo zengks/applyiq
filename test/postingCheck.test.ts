@@ -104,7 +104,7 @@ describe('classifyResponse', () => {
   });
 
   it('never mistakes an empty body for a dead posting', () => {
-    expect(classifyResponse(200, '', NOW).status).toBe('active');
+    expect(classifyResponse(200, '', NOW).status).toBe('unknown');
   });
 });
 

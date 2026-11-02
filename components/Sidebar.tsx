@@ -82,7 +82,7 @@ function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: N
   const inactiveTxt = darkMode ? '#8a8784' : '#6b6864';
 
   return (
-    <div
+    <button type="button"
       onClick={() => onSelect(view)}
       style={{
         display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
@@ -91,7 +91,7 @@ function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: N
         background: active ? activeBg : 'transparent',
         color: active ? activeTxt : inactiveTxt,
         borderLeft: active ? '2px solid #ec4899' : '2px solid transparent',
-        marginBottom: 2,
+        marginBottom: 2, width: '100%', border: 'none', fontFamily: 'inherit', textAlign: 'left',
         transition: 'background 0.15s',
       }}
       onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}
@@ -100,14 +100,14 @@ function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: N
       {icon}
       <span style={{ flex: 1 }}>{label}</span>
       {badge}
-    </div>
+    </button>
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onNavigate }: { open?: boolean; onNavigate?: () => void }) {
   const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, staleCount, showTrialBanner, showExpiredBanner, dispatch } = useStore();
 
-  const selectView = (view: ActiveView) => dispatch({ type: 'SET_VIEW', view });
+  const selectView = (view: ActiveView) => { dispatch({ type: 'SET_VIEW', view }); onNavigate?.(); };
   const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   const sidebarBg = darkMode ? '#0a0908' : '#ffffff';
@@ -122,9 +122,9 @@ export default function Sidebar() {
   const navProps = { activeView, darkMode, onSelect: selectView };
 
   return (
-    <aside style={{
+    <aside id="app-navigation" className={`app-sidebar${open ? ' is-open' : ''}`} style={{
       width: 240, flexShrink: 0, display: 'flex', flexDirection: 'column',
-      height: '100vh', background: sidebarBg, borderRight: `1px solid ${borderColor}`,
+      height: '100dvh', background: sidebarBg, borderRight: `1px solid ${borderColor}`,
     }}>
       {/* Logo */}
       <div style={{ padding: 20, borderBottom: `1px solid ${borderColor}` }}>
@@ -206,7 +206,7 @@ export default function Sidebar() {
             <div style={{ width: 18, height: 18, borderRadius: 5, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, background: '#d1fae5', color: '#059669' }}>✓</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>Pro Active</div>
           </div>
-          <div style={{ fontSize: 11, marginTop: 4, color: darkMode ? '#6ee7b7' : '#065f46' }}>Unlimited everything unlocked</div>
+          <div style={{ fontSize: 11, marginTop: 4, color: darkMode ? '#6ee7b7' : '#065f46' }}>Pro features unlocked</div>
         </div>
       )}
 

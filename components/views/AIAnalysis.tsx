@@ -56,7 +56,7 @@ export default function AIAnalysis() {
   const dashOffset = circumference - (score / 100) * circumference;
 
   return (
-    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeUp 0.25s ease' }}>
+    <div className="workspace-view" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 20, animation: 'fadeUp 0.25s ease' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>AI Analysis</h1>
@@ -72,7 +72,7 @@ export default function AIAnalysis() {
       {/* Input card */}
       {!analysisShown && (
         <div style={cardStyle}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 16 }}>
+          <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 16 }}>
             <input style={inputStyle} placeholder="Job posting URL (required) — AI reads the page for you" value={jobUrl} onChange={e => dispatch({ type: 'SET_JOB_URL', value: e.target.value })} />
             <button
               onClick={handleAnalyze}
@@ -132,7 +132,7 @@ export default function AIAnalysis() {
 
       {/* Results */}
       {analysisShown && aiResult && !aiLoading && (
-        <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 20, alignItems: 'start' }}>
+        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 20, alignItems: 'start' }}>
           {/* Match ring */}
           <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 24 }}>
             <svg width="120" height="120" viewBox="0 0 120 120">
@@ -244,7 +244,7 @@ export default function AIAnalysis() {
                 <div>
                   <div style={{ fontSize: 36, fontWeight: 800, color: t.p, letterSpacing: '-1px', marginBottom: 4 }}>{aiResult.salaryRange}</div>
                   <div style={{ fontSize: 12, color: t.m, marginBottom: 20 }}>Estimated salary range</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
+                  <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 20 }}>
                     {[{ label: 'Industry', value: aiResult.industry }, { label: 'Seniority', value: aiResult.seniority }].map(item => (
                       <div key={item.label} style={{ background: t.inner, borderRadius: 10, padding: 14 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: t.m, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>{item.label}</div>

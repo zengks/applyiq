@@ -1,4 +1,16 @@
 import { AIResult } from './types';
+import { z } from 'zod';
+
+const analysisSchema = z.object({
+  matchScore: z.number().min(0).max(100),
+  role: z.string().max(500), company: z.string().max(500),
+  matchedKeywords: z.array(z.string().max(500)).max(100),
+  missingKeywords: z.array(z.string().max(500)).max(100),
+  aiSuggestion: z.string().max(10000), coverLetter: z.string().max(20000),
+  interviewQuestions: z.array(z.object({ q: z.string().max(2000), hint: z.string().max(4000) })).max(30),
+  salaryRange: z.string().max(1000), industry: z.string().max(500), seniority: z.string().max(500),
+  culture: z.array(z.string().max(500)).max(100),
+});
 
 /** Tracking / analytics query params that bloat job-board URLs (esp. Indeed,
  *  LinkedIn). Stripped before fetching so the URL doesn't exceed web_fetch's
@@ -37,10 +49,10 @@ export function normalizeJobUrl(raw: string): string {
 export function parseAIResponse(raw: string): AIResult {
   const cleaned = raw.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
   try {
-    return JSON.parse(cleaned) as AIResult;
+    return analysisSchema.parse(JSON.parse(cleaned));
   } catch {
     const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]) as AIResult;
+    if (match) return analysisSchema.parse(JSON.parse(match[0]));
     throw new Error('Could not parse AI response');
   }
 }

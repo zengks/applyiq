@@ -11,6 +11,7 @@ export type PostingStatus = 'active' | 'expired' | 'removed' | 'unknown';
 
 export interface Application {
   id: string;
+  createdAt?: string;
   company: string;
   role: string;
   status: AppStatus;

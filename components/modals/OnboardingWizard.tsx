@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { useStore } from '@/lib/store';
 
 export default function OnboardingWizard() {
-  const { onboardingStep, darkMode, dispatch } = useStore();
-  const [name, setName] = useState('');
-  const [title, setTitle] = useState('');
-  const [resume, setResume] = useState('');
+  const { onboardingStep, darkMode, dispatch, profileName, profileTitle, resumeText } = useStore();
+  const [name, setName] = useState(profileName);
+  const [title, setTitle] = useState(profileTitle);
+  const [resume, setResume] = useState(resumeText);
   const [parsing, setParsing] = useState(false);
 
   async function uploadResumeFile(file: File) {
@@ -15,6 +15,7 @@ export default function OnboardingWizard() {
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('store', 'false'); // Setup imports text; the Vault stores file versions.
       const res = await fetch('/api/resume/parse', { method: 'POST', body: form });
       const data = await res.json();
       if (res.ok && data.text) setResume(data.text);
@@ -62,7 +63,7 @@ export default function OnboardingWizard() {
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: bg, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div style={{ width: 480, background: card, borderRadius: 20, padding: 40, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', animation: 'scaleIn 0.2s ease' }}>
+      <div style={{ width: 480, maxWidth: '100%', maxHeight: 'calc(100dvh - 40px)', overflowY: 'auto', background: card, borderRadius: 20, padding: 24, boxShadow: '0 24px 64px rgba(0,0,0,0.18)', animation: 'scaleIn 0.2s ease' }}>
 
         {/* Step dots */}
         <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 32 }}>

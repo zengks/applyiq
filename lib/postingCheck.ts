@@ -1,4 +1,5 @@
 import { PostingStatus } from './types';
+import ipaddr from 'ipaddr.js';
 
 /** How long a check result stays fresh before the app re-checks in the background. */
 export const CHECK_TTL_MS = 24 * 60 * 60 * 1000;
@@ -58,20 +59,11 @@ const REMOVED_PHRASES = [
 ];
 
 /** Hosts we refuse to fetch — loopback, link-local, and private ranges (SSRF guard). */
-function isPrivateHost(hostname: string): boolean {
+export function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase().replace(/^\[|\]$/g, '');
   if (h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
-  if (h === '::1' || h === '0.0.0.0') return true;
-  if (h.startsWith('fc') || h.startsWith('fd')) return true; // IPv6 unique-local
-  if (h.startsWith('fe80:')) return true;                    // IPv6 link-local
-  const v4 = h.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (!v4) return false;
-  const [a, b] = [Number(v4[1]), Number(v4[2])];
-  if (a === 10 || a === 127 || a === 0) return true;
-  if (a === 169 && b === 254) return true;                   // link-local / cloud metadata
-  if (a === 172 && b >= 16 && b <= 31) return true;
-  if (a === 192 && b === 168) return true;
-  return false;
+  // process() normalizes IPv4-mapped IPv6 before checking reserved ranges.
+  return ipaddr.isValid(h) && ipaddr.process(h).range() !== 'unicast';
 }
 
 /**
@@ -86,6 +78,7 @@ export function safeFetchUrl(raw: string): URL | null {
     return null;
   }
   if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (u.username || u.password || (u.port && u.port !== '80' && u.port !== '443')) return null;
   if (isPrivateHost(u.hostname)) return null;
   return u;
 }
@@ -133,6 +126,8 @@ export function classifyResponse(httpStatus: number, html: string, now: number =
   if (httpStatus < 200 || httpStatus >= 400) {
     return { status: 'unknown', note: `Unexpected response (${httpStatus}). Open the link to confirm it yourself.` };
   }
+
+  if (!html.trim()) return { status: 'unknown', note: 'No readable posting page was returned. Open the link to confirm it yourself.' };
 
   const text = extractText(html);
 

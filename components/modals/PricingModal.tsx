@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '@/lib/store';
 
 type Tier = 'free' | 'pro' | 'team';
@@ -8,8 +8,6 @@ type Tier = 'free' | 'pro' | 'team';
 interface PlanDef {
   tier: Tier;
   name: string;
-  priceMonthly: string;
-  priceAnnual: string;
   features: string[];
   highlight: boolean;
   badge?: string;
@@ -21,18 +19,14 @@ const PLANS: PlanDef[] = [
   {
     tier: 'free',
     name: 'Free Forever',
-    priceMonthly: '$0',
-    priceAnnual: '$0',
-    features: ['5 applications', '1 resume', '3 AI analyses/month', 'Basic dashboard'],
+    features: ['5 applications', '1 resume', '3 AI requests/calendar month', 'Basic dashboard'],
     highlight: false,
     available: true,
   },
   {
     tier: 'pro',
     name: 'Pro',
-    priceMonthly: '$15/mo',
-    priceAnnual: '$9/mo',
-    features: ['Unlimited applications', '3 resume versions', 'Unlimited AI analyses', 'Cover letter generator', 'Interview prep', 'Salary insights'],
+    features: ['Unlimited applications', '3 resume versions', 'AI analyses with fair-use limits', 'Cover letter generator', 'Interview prep', 'Salary insights'],
     highlight: true,
     badge: 'MOST POPULAR',
     available: true,
@@ -40,8 +34,6 @@ const PLANS: PlanDef[] = [
   {
     tier: 'team',
     name: 'Team',
-    priceMonthly: '$39/mo',
-    priceAnnual: '$29/mo',
     features: ['Everything in Pro', '5 team seats', 'Shared resume vault', 'Team analytics', 'Priority support'],
     highlight: false,
     available: false,
@@ -49,9 +41,27 @@ const PLANS: PlanDef[] = [
 ];
 
 export default function PricingModal() {
-  const { showPricingModal, billingCycle, darkMode, isPro, dispatch } = useStore();
+  const { showPricingModal, billingCycle, darkMode, isPro, isTrialing, subscription, dispatch } = useStore();
   const [loadingTier, setLoadingTier] = useState<Tier | null>(null);
   const [error, setError] = useState('');
+  const [prices, setPrices] = useState<Record<'monthly' | 'annual', { amount: number; currency: string }> | null>(null);
+  useEffect(() => {
+    if (!showPricingModal) return;
+    const controller = new AbortController();
+    void (async () => {
+      try {
+        const response = await fetch('/api/stripe/prices', { signal: controller.signal });
+        if (!response.ok) throw new Error('Prices are unavailable. Please reopen this window to retry.');
+        const data = await response.json();
+        if (![data.monthly?.amount, data.annual?.amount].every(v => typeof v === 'number' && v > 0)) throw new Error('Prices are unavailable.');
+        setPrices(data);
+        setError('');
+      } catch (error) {
+        if (!controller.signal.aborted) setError(error instanceof Error ? error.message : 'Prices are unavailable.');
+      }
+    })();
+    return () => controller.abort();
+  }, [showPricingModal]);
 
   if (!showPricingModal) return null;
 
@@ -67,7 +77,7 @@ export default function PricingModal() {
   // Only the Pro tier is purchasable today (Free is current, Team has no price yet).
   // The monthly/annual toggle decides the actual Stripe price.
   async function selectPlan(plan: PlanDef) {
-    if (plan.tier !== 'pro' || !plan.available || isPro || loadingTier) return;
+    if (plan.tier !== 'pro' || !plan.available || isPro || isTrialing || !prices || loadingTier) return;
     setError('');
     setLoadingTier(plan.tier);
     try {
@@ -92,10 +102,15 @@ export default function PricingModal() {
   function ctaFor(plan: PlanDef): { label: string; disabled: boolean } {
     if (plan.tier === 'free') return { label: isPro ? 'Free plan' : 'Current Plan', disabled: true };
     if (plan.tier === 'team') return { label: 'Coming soon', disabled: true };
-    if (isPro) return { label: '✓ Current Plan', disabled: true };
+    if (isPro || isTrialing) return { label: isTrialing ? '✓ Trial active' : '✓ Current Plan', disabled: true };
+    if (!prices) return { label: 'Loading prices…', disabled: true };
     if (loadingTier === 'pro') return { label: 'Redirecting…', disabled: true };
-    return { label: 'Start Pro — Try Free', disabled: false };
+    return { label: subscription?.priceId || subscription?.trialEndsAt ? 'Continue with Pro' : 'Start Pro — Try Free', disabled: false };
   }
+
+  const money = (amount: number, currency: string) => new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
+  const discount = prices && prices.monthly.currency === prices.annual.currency
+    ? Math.max(0, Math.round((1 - prices.annual.amount / (12 * prices.monthly.amount)) * 100)) : 0;
 
   return (
     <>
@@ -125,8 +140,8 @@ export default function PricingModal() {
                 }}
               >
                 {cycle === 'monthly' ? 'Monthly' : 'Annual'}
-                {cycle === 'annual' && (
-                  <span style={{ background: '#ecfdf5', color: '#059669', fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>30% off</span>
+                {cycle === 'annual' && discount > 0 && (
+                  <span style={{ background: '#ecfdf5', color: '#059669', fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 20 }}>{discount}% off</span>
                 )}
               </button>
             ))}
@@ -134,7 +149,7 @@ export default function PricingModal() {
         </div>
 
         {/* Plans */}
-        <div style={{ display: 'flex', gap: 16 }}>
+        <div className="pricing-plans" style={{ display: 'flex', gap: 16 }}>
           {PLANS.map(plan => {
             const cta = ctaFor(plan);
             const purchasable = plan.tier === 'pro' && !isPro;
@@ -154,10 +169,14 @@ export default function PricingModal() {
               <div style={{ marginBottom: 16 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: t.p, marginBottom: 8 }}>{plan.name}</div>
                 <div style={{ fontSize: 28, fontWeight: 800, color: t.p, letterSpacing: '-0.8px' }}>
-                  {billingCycle === 'annual' ? plan.priceAnnual : plan.priceMonthly}
+                  {plan.tier === 'pro'
+                    ? prices ? `${money(billingCycle === 'annual' ? prices.annual.amount / 12 : prices.monthly.amount, prices[billingCycle].currency)}/mo` : 'Loading…'
+                    : plan.tier === 'team' ? 'Coming soon' : '$0'}
                 </div>
                 {plan.name !== 'Free Forever' && (
-                  <div style={{ fontSize: 12, color: t.m }}>billed {billingCycle === 'annual' ? 'annually' : 'monthly'}</div>
+                  <div style={{ fontSize: 12, color: t.m }}>{plan.tier === 'pro' && prices
+                    ? `${money(prices[billingCycle].amount, prices[billingCycle].currency)} billed ${billingCycle === 'annual' ? 'annually' : 'monthly'}`
+                    : 'Not available yet'}</div>
                 )}
               </div>
 
@@ -196,7 +215,7 @@ export default function PricingModal() {
         )}
 
         <div style={{ textAlign: 'center', marginTop: 24, fontSize: 12, color: t.m }}>
-          Cancel anytime · No hidden fees · All your data is preserved forever
+          Pro and trial AI usage: 30 requests/hour, subject to a monthly fair-use budget. Cancel anytime.
         </div>
       </div>
     </>

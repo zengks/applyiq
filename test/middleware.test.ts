@@ -28,6 +28,14 @@ describe('updateSession (auth middleware)', () => {
     expect(res.headers.get('location')).toBeNull(); // NextResponse.next(), no redirect
   });
 
+  it('returns JSON 401 for an unauthenticated API request', async () => {
+    signedOut();
+    const res = await updateSession(reqFor('/api/analyze'));
+    expect(res.status).toBe(401);
+    expect(await res.json()).toEqual({ error: 'Not authenticated.' });
+    expect(res.headers.get('location')).toBeNull();
+  });
+
   it('lets signed-out users reach the landing page', async () => {
     signedOut();
     const res = await updateSession(reqFor('/'));

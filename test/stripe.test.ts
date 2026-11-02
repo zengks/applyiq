@@ -21,9 +21,8 @@ function fakeSub(over: Record<string, unknown> = {}): Stripe.Subscription {
     customer: 'cus_1',
     status: 'trialing',
     trial_end: 1700000000,
-    current_period_end: 1700600000,
     cancel_at_period_end: false,
-    items: { data: [{ price: { id: 'price_monthly' } }] },
+    items: { data: [{ price: { id: 'price_monthly' }, current_period_end: 1700600000 }] },
     metadata: {},
     ...over,
   } as unknown as Stripe.Subscription;

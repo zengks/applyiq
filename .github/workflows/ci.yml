@@ -1,0 +1,37 @@
+name: App checks
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-public-placeholder
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-placeholder
+      ANTHROPIC_API_KEY: ci-placeholder
+      STRIPE_SECRET_KEY: sk_test_ci_placeholder
+      STRIPE_PRICE_ID_MONTHLY: price_monthly_placeholder
+      STRIPE_PRICE_ID_ANNUAL: price_annual_placeholder
+      NEXT_PUBLIC_SITE_URL: http://localhost:3000
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - run: npm exec -- next typegen
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm run test:run
+      - run: npm audit --omit=dev --audit-level=moderate
+      - run: npm run build -- --webpack

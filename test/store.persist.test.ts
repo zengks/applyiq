@@ -4,13 +4,15 @@ import { persistAction, INITIAL, type State } from '@/lib/store';
 import type { Application, Resume } from '@/lib/types';
 
 function makeSupabase() {
-  const eq = vi.fn().mockResolvedValue({ error: null });
-  const insert = vi.fn().mockResolvedValue({ error: null });
-  const upsert = vi.fn().mockResolvedValue({ error: null });
-  const update = vi.fn(() => ({ eq }));
-  const del = vi.fn(() => ({ eq }));
-  const from = vi.fn(() => ({ insert, update, upsert, delete: del }));
-  return { client: { from } as unknown as SupabaseClient, from, insert, upsert, update, del, eq };
+  const result = { error: null as unknown, data: { id: 'saved' } };
+  const chain = { eq: vi.fn(), select: vi.fn(), single: vi.fn(), then: (resolve: (value: typeof result) => void) => resolve(result) };
+  chain.eq.mockReturnValue(chain); chain.select.mockReturnValue(chain); chain.single.mockImplementation(() => Promise.resolve(result));
+  const upsert = vi.fn(() => chain);
+  const update = vi.fn(() => chain);
+  const del = vi.fn(() => chain);
+  const rpc = vi.fn().mockResolvedValue({ error: null });
+  const from = vi.fn(() => ({ update, upsert, delete: del }));
+  return { client: { from, rpc } as unknown as SupabaseClient, from, upsert, update, del, rpc, eq: chain.eq, result };
 }
 
 const UID = 'user-123';
@@ -45,7 +47,7 @@ describe('persistAction', () => {
     const state: State = { ...INITIAL, applications: [app()] };
     await persistAction({ type: 'ADD_APP', app: app() }, state, m.client, UID);
     expect(m.from).toHaveBeenCalledWith('applications');
-    expect(m.insert).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1', user_id: UID, company: 'Stripe', match: 80 }));
+    expect(m.upsert).toHaveBeenCalledWith(expect.objectContaining({ id: 'a1', user_id: UID, company: 'Stripe', match: 80 }));
   });
 
   it('UPDATE_APP_STATUS updates by id', async () => {
@@ -66,18 +68,17 @@ describe('persistAction', () => {
     const m = makeSupabase();
     const state: State = { ...INITIAL, resumes: [resume()] };
     await persistAction({ type: 'ADD_RESUME', resume: resume() }, state, m.client, UID);
-    expect(m.insert).toHaveBeenCalledWith(expect.objectContaining({
-      id: 'r1', user_id: UID, name: 'R', file_path: 'user-123/x.pdf', ats_score: 70, is_default: true,
+    expect(m.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'r1', user_id: UID, name: 'R', file_path: 'user-123/x.pdf', ats_score: 70, is_default: false,
     }));
+    expect(m.rpc).toHaveBeenCalledWith('set_default_resume', { resume_id: 'r1' });
   });
 
-  it('SET_DEFAULT_RESUME unsets all then sets one', async () => {
+  it('SET_DEFAULT_RESUME selects the owned resume atomically', async () => {
     const m = makeSupabase();
     await persistAction({ type: 'SET_DEFAULT_RESUME', id: 'r2' }, INITIAL, m.client, UID);
-    expect(m.update).toHaveBeenNthCalledWith(1, { is_default: false });
-    expect(m.eq).toHaveBeenNthCalledWith(1, 'user_id', UID);
-    expect(m.update).toHaveBeenNthCalledWith(2, { is_default: true });
-    expect(m.eq).toHaveBeenNthCalledWith(2, 'id', 'r2');
+    expect(m.rpc).toHaveBeenCalledWith('set_default_resume', { resume_id: 'r2' });
+    expect(m.update).not.toHaveBeenCalled();
   });
 
   it('SET_PROFILE upserts the profile', async () => {
@@ -105,10 +106,10 @@ describe('persistAction', () => {
     expect(m.from).not.toHaveBeenCalled();
   });
 
-  it('swallows DB errors without throwing', async () => {
+  it('propagates returned database errors instead of reporting a successful save', async () => {
     const m = makeSupabase();
-    m.insert.mockRejectedValueOnce(new Error('db down'));
+    m.result.error = { message: 'db down', code: 'PGRST000' };
     const state: State = { ...INITIAL, applications: [app()] };
-    await expect(persistAction({ type: 'ADD_APP', app: app() }, state, m.client, UID)).resolves.toBeUndefined();
+    await expect(persistAction({ type: 'ADD_APP', app: app() }, state, m.client, UID)).rejects.toEqual(m.result.error);
   });
 });

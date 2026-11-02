@@ -90,7 +90,10 @@ function req(body: unknown) {
     body: JSON.stringify(body),
   });
 }
-const ok = () => ({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(sample) }] });
+const ok = () => ({ stop_reason: 'end_turn', content: [
+  { type: 'web_fetch_tool_result', content: { type: 'web_fetch_result' } },
+  { type: 'text', text: JSON.stringify(sample) },
+] });
 
 describe('POST /api/analyze', () => {
   beforeEach(() => {
@@ -127,12 +130,12 @@ describe('POST /api/analyze', () => {
     expect(create).not.toHaveBeenCalled();
   });
 
-  it('fails open if the rate-limit check errors (e.g. table missing)', async () => {
+  it('blocks spending if the usage database is unavailable', async () => {
     enforceRateLimits.mockRejectedValue(new Error('relation "api_usage" does not exist'));
     create.mockResolvedValue(ok());
     const res = await POST(req({ jobUrl: 'https://jobs.example.com/1' }) as never);
-    expect(res.status).toBe(200);
-    expect(create).toHaveBeenCalled();
+    expect(res.status).toBe(503);
+    expect(create).not.toHaveBeenCalled();
   });
 
   it('returns the analysis + cost, and uses web_fetch on Sonnet', async () => {
@@ -165,12 +168,12 @@ describe('POST /api/analyze', () => {
     ],
   };
 
-  it('returns 422 (and does not charge) when the fetch failed with no pasted fallback', async () => {
+  it('returns 422 but records consumed tokens when the fetch failed', async () => {
     create.mockResolvedValue(failedFetch);
     const res = await POST(req({ jobUrl: 'https://blocked.example.com/1' }) as never);
     expect(res.status).toBe(422);
     expect((await res.json()).error).toMatch(/block automated access/);
-    expect(logUsage).not.toHaveBeenCalled();
+    expect(logUsage).toHaveBeenCalledTimes(1);
   });
 
   it('still analyzes when the fetch failed but a description was pasted', async () => {
@@ -188,7 +191,7 @@ describe('POST /api/analyze', () => {
 
   it('returns 500 when the response cannot be parsed', async () => {
     create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: 'totally not json' }] });
-    const res = await POST(req({ jobUrl: 'https://jobs.example.com/1' }) as never);
+    const res = await POST(req({ jobUrl: 'https://jobs.example.com/1', jobDescription: 'A real pasted posting' }) as never);
     expect(res.status).toBe(500);
   });
 });

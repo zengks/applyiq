@@ -35,9 +35,9 @@ describe('deriveStoreValues', () => {
     expect(deriveStoreValues({ ...INITIAL, loading: false, subscription: sub({ status: 'trialing', trialEndsAt: past }) }, NOW).showTrialBanner).toBe(false);
   });
 
-  it('showExpiredBanner when not loading, not pro, not trialing', () => {
-    expect(deriveStoreValues({ ...INITIAL, loading: false, subscription: null }, NOW).showExpiredBanner).toBe(true);
-    expect(deriveStoreValues({ ...INITIAL, loading: false, subscription: sub({ status: 'canceled' }) }, NOW).showExpiredBanner).toBe(true);
+  it('only describes a trial as ended when the account actually had one', () => {
+    expect(deriveStoreValues({ ...INITIAL, loading: false, subscription: null }, NOW).showExpiredBanner).toBe(false);
+    expect(deriveStoreValues({ ...INITIAL, loading: false, subscription: sub({ status: 'canceled', trialEndsAt: new Date(NOW - DAY).toISOString() }) }, NOW).showExpiredBanner).toBe(true);
     expect(deriveStoreValues({ ...INITIAL, loading: true, subscription: null }, NOW).showExpiredBanner).toBe(false);
     expect(deriveStoreValues({ ...INITIAL, loading: false, subscription: sub({ status: 'active' }) }, NOW).showExpiredBanner).toBe(false);
   });

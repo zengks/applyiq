@@ -43,10 +43,10 @@ export default function Profile() {
     textTransform: 'uppercase' as const, letterSpacing: '0.06em',
   };
 
-  function handleSave() {
-    dispatch({ type: 'SET_PROFILE', name: name.trim() || 'User', title: title.trim() || 'Job Seeker', resume });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  async function handleSave() {
+    const saved = await dispatch({ type: 'SET_PROFILE', name: name.trim() || 'User', title: title.trim() || 'Job Seeker', resume });
+    setSaved(saved);
+    if (saved) setTimeout(() => setSaved(false), 2000);
   }
 
   async function openBillingPortal() {
@@ -70,10 +70,10 @@ export default function Profile() {
   // Subscription summary
   const planLabel = isPro ? 'Pro' : isTrialing ? 'Free Trial' : 'Free';
   const planSub = isPro
-    ? (subscription?.cancelAtPeriodEnd ? 'Cancels at the end of the current period' : 'Unlimited everything unlocked')
+    ? (subscription?.cancelAtPeriodEnd ? 'Cancels at the end of the current period' : 'Pro features unlocked')
     : isTrialing
       ? `${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left in your trial`
-      : 'Upgrade to unlock unlimited AI analyses and more';
+      : 'Upgrade to unlock more AI analyses and more';
   const planAccent = isPro ? '#059669' : isTrialing ? '#f59e0b' : '#ec4899';
   const planBg = isPro
     ? (darkMode ? 'rgba(16,185,129,0.1)' : '#ecfdf5')
@@ -84,7 +84,7 @@ export default function Profile() {
   const initial = (name.trim()[0] ?? 'U').toUpperCase();
 
   return (
-    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760, animation: 'fadeUp 0.25s ease' }}>
+    <div className="workspace-view" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, maxWidth: 760, animation: 'fadeUp 0.25s ease' }}>
       <div>
         <h1 style={{ fontSize: 26, fontWeight: 800, color: t.p, letterSpacing: '-0.7px', margin: 0 }}>Profile &amp; Account</h1>
         <p style={{ fontSize: 14, color: t.s, margin: '6px 0 0' }}>Manage your details, resume, and subscription.</p>
@@ -114,7 +114,7 @@ export default function Profile() {
           <div style={{ fontSize: 11, color: t.m, marginTop: 6 }}>Your email is managed through your login and can&apos;t be changed here.</div>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
+        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 16 }}>
           <div>
             <label style={labelStyle}>Full Name</label>
             <input style={inputStyle} placeholder="Jane Smith" value={name} onChange={e => setName(e.target.value)} />

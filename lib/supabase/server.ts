@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 
 /** Server-side Supabase client bound to the request's auth cookies. */
 export async function createClient() {
@@ -32,11 +33,11 @@ export async function createClient() {
  * Use for trusted writes such as Stripe webhook → subscriptions table.
  */
 export function createAdminClient() {
-  return createServerClient(
+  return createSupabaseClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
     {
-      cookies: { getAll() { return []; }, setAll() {} },
+      auth: { autoRefreshToken: false, persistSession: false },
     }
   );
 }

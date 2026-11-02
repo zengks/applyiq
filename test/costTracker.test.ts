@@ -16,7 +16,7 @@ vi.mock('@/lib/supabase/server', () => {
       },
       apply: () => chain,
     });
-    return { from: () => chain };
+    return { from: () => chain, rpc: () => chain };
   }
   return { createAdminClient: () => makeAdmin(state.queue) };
 });
@@ -62,22 +62,22 @@ describe('costEstimate', () => {
 // ── 2. enforceRateLimits — 429 decision logic ───────────────────────────────
 describe('enforceRateLimits', () => {
   it('passes when under the hourly and monthly limits', async () => {
-    state.queue = [{ count: 2, error: null }, { data: [{ cost_usd: 1.5 }] }];
+    state.queue = [{ data: 'reservation', error: null }];
     await expect(enforceRateLimits('u1', 'ai_analysis')).resolves.toBeUndefined();
   });
 
   it('throws RateLimitError at the hourly call cap', async () => {
     // hourly count (5) → over cap; then registerHit inserts + counts.
-    state.queue = [{ count: 5, error: null }, {}, { count: 1 }];
+    state.queue = [{ error: { message: 'Usage limit: Too many analyses this hour.' } }];
     await expect(enforceRateLimits('u1', 'ai_analysis')).rejects.toBeInstanceOf(RateLimitError);
   });
 
   it('throws RateLimitError when the monthly spend cap is reached', async () => {
-    state.queue = [{ count: 1, error: null }, { data: [{ cost_usd: 50 }] }, {}, { count: 1 }];
-    await expect(enforceRateLimits('u1', 'ai_analysis')).rejects.toThrow(/Monthly usage cap/);
+    state.queue = [{ error: { message: 'Usage limit: Your monthly AI fair-use budget has been reached.' } }];
+    await expect(enforceRateLimits('u1', 'ai_analysis')).rejects.toThrow(/monthly AI fair-use/);
   });
 
-  it('propagates DB errors so the caller can fail open', async () => {
+  it('propagates DB errors so the caller blocks spending', async () => {
     state.queue = [{ count: null, error: { message: 'relation does not exist' } }];
     await expect(enforceRateLimits('u1', 'ai_analysis')).rejects.toBeDefined();
   });

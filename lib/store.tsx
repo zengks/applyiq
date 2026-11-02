@@ -8,6 +8,7 @@ import {
   NewJobForm, AppStatus, Subscription, SubStatus, PostingStatus, PostingCheckResult,
 } from './types';
 import { needsCheck, MAX_URLS_PER_CHECK } from './postingCheck';
+import { PersistenceQueue, type SyncStatus } from './persistenceQueue';
 
 export interface State {
   loading: boolean;
@@ -157,7 +158,7 @@ export function reducer(state: State, action: Action): State {
     case 'OPEN_ADD_JOB': return { ...state, showAddJobModal: true, newJob: emptyNewJob() };
     case 'CLOSE_ADD_JOB': return { ...state, showAddJobModal: false };
     case 'SET_NEW_JOB': return { ...state, newJob: { ...state.newJob, [action.field]: action.value } };
-    case 'SET_ONBOARDING': return { ...state, onboardingStep: action.step };
+    case 'SET_ONBOARDING': return { ...state, showOnboarding: true, onboardingStep: action.step };
     case 'CLOSE_ONBOARDING': return { ...state, showOnboarding: false };
     case 'SET_JOB_URL': return { ...state, jobUrl: action.value };
     case 'SET_JOB_DESC': return { ...state, jobDescription: action.value };
@@ -170,6 +171,7 @@ export function reducer(state: State, action: Action): State {
       if (!state.aiResult) return state;
       const newApp: Application = {
         id: crypto.randomUUID(),
+        createdAt: new Date().toISOString(),
         company: state.aiResult.company || 'Unknown',
         role: state.aiResult.role || 'Unknown',
         status: 'saved',
@@ -184,8 +186,8 @@ export function reducer(state: State, action: Action): State {
       return { ...state, applications: [newApp, ...state.applications], activeView: 'applications' };
     }
     case 'SET_COVER_COPIED': return { ...state, coverCopied: action.value };
-    case 'SET_DEFAULT_RESUME': return { ...state, resumes: state.resumes.map(r => ({ ...r, isDefault: r.id === action.id })) };
-    case 'ADD_RESUME': return { ...state, resumes: [action.resume, ...state.resumes] };
+    case 'SET_DEFAULT_RESUME': return { ...state, resumeText: state.resumes.find(r => r.id === action.id)?.text ?? state.resumeText, resumes: state.resumes.map(r => ({ ...r, isDefault: r.id === action.id })) };
+    case 'ADD_RESUME': return { ...state, resumeText: action.resume.isDefault ? action.resume.text : state.resumeText, resumes: [action.resume, ...state.resumes] };
     case 'POSTING_CHECK_START':
       return {
         ...state,
@@ -231,58 +233,69 @@ function resumeRow(r: Resume, userId: string) {
   };
 }
 
+const PERSISTED_ACTIONS = new Set([
+  'ADD_APP', 'SAVE_AI_TO_BOARD', 'UPDATE_APP_STATUS', 'UPDATE_APP_NOTES', 'DELETE_APP',
+  'POSTING_CHECK_DONE', 'ADD_RESUME', 'SET_DEFAULT_RESUME', 'SET_PROFILE', 'SET_DARK',
+  'SET_BILLING', 'CLOSE_ONBOARDING',
+]);
+
+function checked<T extends { error: unknown }>(result: T): T {
+  if (result.error) throw result.error;
+  return result;
+}
+
 export async function persistAction(action: Action, state: State, supabase: SupabaseClient, userId: string) {
-  try {
     switch (action.type) {
       case 'ADD_APP':
       case 'SAVE_AI_TO_BOARD': {
         const app = state.applications[0];
-        if (app) await supabase.from('applications').insert(appRow(app, userId));
+        if (app) checked(await supabase.from('applications').upsert(appRow(app, userId)).select('id').single());
         break;
       }
       case 'UPDATE_APP_STATUS':
-        await supabase.from('applications').update({ status: action.status }).eq('id', action.id);
+        checked(await supabase.from('applications').update({ status: action.status }).eq('user_id', userId).eq('id', action.id).select('id').single());
         break;
       case 'UPDATE_APP_NOTES':
-        await supabase.from('applications').update({ notes: action.notes }).eq('id', action.id);
+        checked(await supabase.from('applications').update({ notes: action.notes }).eq('user_id', userId).eq('id', action.id).select('id').single());
         break;
       case 'DELETE_APP':
-        await supabase.from('applications').delete().eq('id', action.id);
+        checked(await supabase.from('applications').delete().eq('user_id', userId).eq('id', action.id));
         break;
       case 'POSTING_CHECK_DONE':
-        await Promise.all(action.results.map(r =>
-          supabase.from('applications')
+        await Promise.all(action.results.map(async r =>
+          checked(await supabase.from('applications')
             .update({ posting_status: r.status, posting_checked_at: r.checkedAt, posting_note: r.note })
-            .eq('id', r.id)
+            .eq('user_id', userId).eq('id', r.id).select('id').single())
         ));
         break;
       case 'ADD_RESUME': {
         const r = state.resumes[0];
-        if (r) await supabase.from('resumes').insert(resumeRow(r, userId));
+        if (r) {
+          // Preserve an existing default on retry; the RPC changes both records atomically.
+          const row = resumeRow(r, userId);
+          checked(await supabase.from('resumes').upsert({ ...row, is_default: false }).select('id').single());
+          if (r.isDefault) checked(await supabase.rpc('set_default_resume', { resume_id: r.id }));
+        }
         break;
       }
       case 'SET_DEFAULT_RESUME':
-        await supabase.from('resumes').update({ is_default: false }).eq('user_id', userId);
-        await supabase.from('resumes').update({ is_default: true }).eq('id', action.id);
+        checked(await supabase.rpc('set_default_resume', { resume_id: action.id }));
         break;
       case 'SET_PROFILE':
-        await supabase.from('profiles').upsert({
+        checked(await supabase.from('profiles').upsert({
           id: userId, full_name: state.profileName, job_title: state.profileTitle, resume_text: state.resumeText,
-        });
+        }).select('id').single());
         break;
       case 'SET_DARK':
-        await supabase.from('profiles').update({ dark_mode: action.value }).eq('id', userId);
+        checked(await supabase.from('profiles').update({ dark_mode: action.value }).eq('id', userId).select('id').single());
         break;
       case 'SET_BILLING':
-        await supabase.from('profiles').update({ billing_cycle: action.cycle }).eq('id', userId);
+        checked(await supabase.from('profiles').update({ billing_cycle: action.cycle }).eq('id', userId).select('id').single());
         break;
       case 'CLOSE_ONBOARDING':
-        await supabase.from('profiles').update({ onboarded: true }).eq('id', userId);
+        checked(await supabase.from('profiles').update({ onboarded: true }).eq('id', userId).select('id').single());
         break;
     }
-  } catch (err) {
-    console.error(`Persist failed for ${action.type}:`, err);
-  }
 }
 
 export interface DerivedValues {
@@ -305,7 +318,7 @@ export interface DerivedValues {
 export function deriveStoreValues(state: State, now: number): DerivedValues {
   const sub = state.subscription;
   const isPro = sub?.status === 'active';
-  const isTrialing = sub?.status === 'trialing';
+  const isTrialing = sub?.status === 'trialing' && !!sub.trialEndsAt && new Date(sub.trialEndsAt).getTime() > now;
   const trialDaysLeft = sub?.trialEndsAt
     ? Math.max(0, Math.ceil((new Date(sub.trialEndsAt).getTime() - now) / 86400000))
     : 0;
@@ -326,7 +339,7 @@ export function deriveStoreValues(state: State, now: number): DerivedValues {
     trialDaysLeft,
     trialDaysTotal: 14,
     showTrialBanner: isTrialing && trialDaysLeft > 0,
-    showExpiredBanner: !state.loading && !isPro && !isTrialing,
+    showExpiredBanner: !state.loading && !isPro && !isTrialing && !!sub?.trialEndsAt,
     urgentCount,
     selectedApp: state.selectedAppId ? state.applications.find(a => a.id === state.selectedAppId) ?? null : null,
     stalePostings,
@@ -349,7 +362,12 @@ export function postingsDueForCheck(apps: Application[], now: number = Date.now(
 
 interface Ctx extends State, DerivedValues {
   showPricingModal: boolean;
-  dispatch: (action: Action) => void;
+  dispatch: (action: Action) => Promise<boolean>;
+  syncStatus: SyncStatus;
+  loadError: string;
+  retryLoad: () => Promise<void>;
+  retrySave: () => Promise<void>;
+  discardUnsaved: () => Promise<void>;
   /** Re-checks the given postings (all due ones when omitted) against their source. */
   checkPostings: (ids?: string[]) => Promise<void>;
 }
@@ -372,6 +390,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [state, rawDispatch] = useReducer(reducer, INITIAL);
   // showPricingModal is tracked separately to avoid widening the persisted State type.
   const [showPricingModal, setShowPricingModal] = useState(false);
+  const [loadError, setLoadError] = useState('');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>({ pending: 0, saving: false, error: '' });
+  const [saveQueue] = useState(() => new PersistenceQueue(setSyncStatus));
 
   const stateRef = useRef(state);
   const userIdRef = useRef<string | null>(null);
@@ -379,8 +400,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Load everything for the signed-in user.
   const hydrate = useCallback(async () => {
+    if (saveQueue.pending) return;
+    try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { rawDispatch({ type: 'HYDRATE', payload: emptyHydrate() }); return; }
+    if (!user) { userIdRef.current = null; rawDispatch({ type: 'HYDRATE', payload: emptyHydrate() }); return; }
     userIdRef.current = user.id;
 
     const [profileRes, appsRes, resumesRes, subRes] = await Promise.all([
@@ -389,6 +412,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       supabase.from('resumes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('subscriptions').select('*').eq('user_id', user.id).maybeSingle(),
     ]);
+    [profileRes, appsRes, resumesRes, subRes].forEach(checked);
+    setLoadError('');
 
     const profile = profileRes.data;
     rawDispatch({
@@ -402,7 +427,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         billingCycle: (profile?.billing_cycle as BillingCycle) ?? 'annual',
         onboarded: Boolean(profile?.onboarded),
         applications: (appsRes.data ?? []).map((a): Application => ({
-          id: a.id, company: a.company, role: a.role, status: a.status,
+          id: a.id, createdAt: a.created_at, company: a.company, role: a.role, status: a.status,
           match: a.match, deadline: a.deadline, url: a.url, notes: a.notes,
           // Defaults keep the app working before the posting_status migration is applied.
           postingStatus: (a.posting_status as PostingStatus) ?? 'unknown',
@@ -417,8 +442,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         subscription: mapSubscription(subRes.data),
       },
     });
-  }, [supabase]);
+    } catch (error) {
+      console.error('Could not load account data:', error);
+      setLoadError('Could not load your account. Your saved data has not been replaced. Please retry.');
+    }
+  }, [supabase, saveQueue]);
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- Hydrate asynchronously synchronizes external Supabase account data.
   useEffect(() => { void hydrate(); }, [hydrate]);
 
   // Re-fetch the subscription after returning from Stripe Checkout (webhook may lag).
@@ -433,14 +463,25 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Reflect dark mode on <body>.
   useEffect(() => { document.body.classList.toggle('dark', state.darkMode); }, [state.darkMode]);
 
+  useEffect(() => {
+    if (!syncStatus.pending) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [syncStatus.pending]);
+
   const dispatch = useCallback((action: Action) => {
-    if (action.type === 'OPEN_PRICING') { setShowPricingModal(true); return; }
-    if (action.type === 'CLOSE_PRICING') { setShowPricingModal(false); return; }
-    const next = reducer(stateRef.current, action);
+    if (action.type === 'OPEN_PRICING') { setShowPricingModal(true); return Promise.resolve(true); }
+    if (action.type === 'CLOSE_PRICING') { setShowPricingModal(false); return Promise.resolve(true); }
+    const previous = stateRef.current;
+    const next = reducer(previous, action);
+    if (next === previous) return Promise.resolve(true);
     stateRef.current = next;
     rawDispatch(action);
-    if (userIdRef.current) void persistAction(action, next, supabase, userIdRef.current);
-  }, [supabase]);
+    const userId = userIdRef.current;
+    if (userId && PERSISTED_ACTIONS.has(action.type)) return saveQueue.enqueue(() => persistAction(action, next, supabase, userId));
+    return Promise.resolve(true);
+  }, [supabase, saveQueue]);
 
   // Ask the server whether saved postings are still live. With no ids, checks
   // everything that's due; skips anything already in flight.
@@ -462,6 +503,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Check failed.');
+      // Always clear every target, including deleted rows and blank URLs.
+      dispatch({ type: 'POSTING_CHECK_FAIL', ids: targets, message: '' });
       dispatch({ type: 'POSTING_CHECK_DONE', results: data.results ?? [] });
     } catch (err) {
       console.error('Posting check failed:', err);
@@ -485,7 +528,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const derived = deriveStoreValues(state, Date.now());
 
   return (
-    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, checkPostings, ...derived }}>
+    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, checkPostings, syncStatus, loadError, retryLoad: hydrate, retrySave: () => saveQueue.retry(), discardUnsaved: async () => { saveQueue.discard(); window.location.reload(); }, ...derived }}>
       {children}
     </StoreCtx.Provider>
   );

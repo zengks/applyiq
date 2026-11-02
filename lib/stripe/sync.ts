@@ -13,7 +13,7 @@ export interface SubscriptionRow {
 /** Maps a Stripe subscription into the columns of our `subscriptions` table (minus user_id). */
 export function mapStripeSubscription(sub: Stripe.Subscription): SubscriptionRow {
   const customerId = typeof sub.customer === 'string' ? sub.customer : sub.customer.id;
-  const periodEnd = (sub as unknown as { current_period_end?: number }).current_period_end;
+  const periodEnd = sub.items.data[0]?.current_period_end;
   return {
     stripe_customer_id: customerId,
     stripe_subscription_id: sub.id,

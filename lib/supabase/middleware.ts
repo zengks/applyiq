@@ -40,9 +40,12 @@ export async function updateSession(request: NextRequest) {
     PUBLIC_EXACT.includes(pathname) || PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (!user && !isPublic) {
+    if (pathname.startsWith('/api/')) return NextResponse.json({ error: 'Not authenticated.' }, { status: 401 });
     const url = request.nextUrl.clone();
     url.pathname = '/login';
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    response.cookies.getAll().forEach(cookie => redirect.cookies.set(cookie));
+    return redirect;
   }
 
   // Signed-in users shouldn't sit on the marketing or auth screens — send them
@@ -54,7 +57,9 @@ export async function updateSession(request: NextRequest) {
   ) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const redirect = NextResponse.redirect(url);
+    response.cookies.getAll().forEach(cookie => redirect.cookies.set(cookie));
+    return redirect;
   }
 
   return response;

@@ -44,7 +44,7 @@ export default function DetailDrawer() {
 
       {/* Drawer */}
       <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, width: 420,
+        position: 'fixed', top: 0, right: 0, bottom: 0, width: 'min(420px, 100vw)',
         background: t.card, zIndex: 50, display: 'flex', flexDirection: 'column',
         boxShadow: '-8px 0 40px rgba(0,0,0,0.12)',
         animation: 'slideIn 0.25s ease',
@@ -164,7 +164,12 @@ export default function DetailDrawer() {
         {/* Footer actions */}
         <div style={{ padding: '16px 22px', borderTop: `1px solid ${t.d}`, display: 'flex', gap: 10 }}>
           <button
-            onClick={() => dispatch({ type: 'SET_VIEW', view: 'ai' })}
+            onClick={() => {
+              dispatch({ type: 'AI_RESET' });
+              dispatch({ type: 'SET_JOB_URL', value: selectedApp.url });
+              dispatch({ type: 'CLOSE_DETAIL' });
+              dispatch({ type: 'SET_VIEW', view: 'ai' });
+            }}
             style={{ flex: 2, padding: '10px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Analyze with AI

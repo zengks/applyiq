@@ -30,13 +30,9 @@ const EST_OUTPUT_TOKENS: Record<string, number> = {
 };
 
 // Limits / alert thresholds
-const MAX_CALLS_PER_HOUR = 5;
-const MONTHLY_HARD_USD = 50;
 const MONTHLY_SOFT_USD = 45;
-const FEATURE_COOLDOWN_SEC: Record<string, number> = { resume_tailor: 30 * 60 }; // 1 per 30 min
 const SINGLE_CALL_WARN_USD = 0.5;
 const DAILY_SPEND_ERR_USD = 50;
-const RATE_HIT_ALERT_COUNT = 3;
 
 /** Thrown when a user is over a limit — the route maps this to HTTP 429. */
 export class RateLimitError extends Error {
@@ -59,7 +55,6 @@ export interface CostInfo {
 }
 
 // ── time boundaries (UTC), as ISO strings for timestamptz comparisons ────────
-const hourAgo = () => new Date(Date.now() - 3600_000).toISOString();
 function dayStart(d = new Date()) { const x = new Date(d); x.setUTCHours(0, 0, 0, 0); return x.toISOString(); }
 function monthStart(d = new Date()) { const x = new Date(d); x.setUTCDate(1); x.setUTCHours(0, 0, 0, 0); return x.toISOString(); }
 function yearStart(d = new Date()) { const x = new Date(d); x.setUTCMonth(0, 1); x.setUTCHours(0, 0, 0, 0); return x.toISOString(); }
@@ -96,74 +91,14 @@ export function costEstimate(feature: string, inputTokens: number, outputTokens?
   };
 }
 
-async function registerHit(
-  admin: ReturnType<typeof createAdminClient>,
-  userId: string,
-  feature: string,
-  reason: string,
-) {
-  await admin.from('api_rate_limit_hits').insert({ user_id: userId, feature, reason });
-  const { count } = await admin
-    .from('api_rate_limit_hits')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gte('created_at', dayStart());
-  if ((count ?? 0) >= RATE_HIT_ALERT_COUNT) {
-    console.error(`[cost] ALERT: user ${userId} hit rate limits ${count}x today (latest=${reason})`);
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Enforce rate limits — throws RateLimitError (→ 429). Call before the API request.
-//    Fails open on DB/infra errors so a tracking outage never blocks the product.
-// ─────────────────────────────────────────────────────────────────────────────
+/** Atomically reserve an attempt before spending tokens. Database outages block spending. */
 export async function enforceRateLimits(userId: string, feature: string): Promise<void> {
-  const admin = createAdminClient();
-
-  const { count: hourCount, error: hourErr } = await admin
-    .from('api_usage')
-    .select('*', { count: 'exact', head: true })
-    .eq('user_id', userId)
-    .gte('created_at', hourAgo());
-  if (hourErr) throw hourErr; // surfaces "table missing" → route fails open
-  if ((hourCount ?? 0) >= MAX_CALLS_PER_HOUR) {
-    await registerHit(admin, userId, feature, 'hourly_call_limit');
-    throw new RateLimitError(
-      `Rate limit: max ${MAX_CALLS_PER_HOUR} AI analyses per hour. Please wait and try again.`,
-    );
-  }
-
-  const { data: monthRows } = await admin
-    .from('api_usage')
-    .select('cost_usd')
-    .eq('user_id', userId)
-    .gte('created_at', monthStart());
-  const monthSpend = (monthRows ?? []).reduce((s, r) => s + Number(r.cost_usd), 0);
-  if (monthSpend >= MONTHLY_HARD_USD) {
-    await registerHit(admin, userId, feature, 'monthly_spend_cap');
-    throw new RateLimitError(`Monthly usage cap of $${MONTHLY_HARD_USD} reached. It resets next month.`);
-  }
-
-  const cd = FEATURE_COOLDOWN_SEC[feature];
-  if (cd) {
-    const { data: last } = await admin
-      .from('api_usage')
-      .select('created_at')
-      .eq('user_id', userId)
-      .eq('feature', feature)
-      .order('created_at', { ascending: false })
-      .limit(1);
-    const ts = last?.[0]?.created_at;
-    if (ts) {
-      const elapsed = (Date.now() - new Date(ts).getTime()) / 1000;
-      if (elapsed < cd) {
-        const mins = Math.max(1, Math.ceil((cd - elapsed) / 60));
-        await registerHit(admin, userId, feature, 'feature_cooldown');
-        throw new RateLimitError(
-          `'${feature}' is limited to once per ${cd / 60} min. Try again in ~${mins} min.`,
-        );
-      }
-    }
+  const { error } = await createAdminClient().rpc('reserve_ai_analysis', {
+    account_id: userId, feature_name: feature,
+  });
+  if (error) {
+    if (error.message?.startsWith('Usage limit:')) throw new RateLimitError(error.message);
+    throw error;
   }
 }
 
@@ -184,18 +119,22 @@ export async function logUsage(
   const costUsd = costFor(model, inp, out, cw, cr);
 
   const admin = createAdminClient();
-  await admin.from('api_usage').insert({
+  const { error: insertError } = await admin.from('api_usage').insert({
     user_id: userId, feature, model,
     input_tokens: inp, output_tokens: out,
     cache_write_tokens: cw, cache_read_tokens: cr, cost_usd: costUsd,
   });
 
-  const { data: monthRows } = await admin
+  if (insertError) throw insertError;
+
+  const { data: monthRows, error: monthError } = await admin
     .from('api_usage').select('cost_usd').eq('user_id', userId).gte('created_at', monthStart());
+  if (monthError) throw monthError;
   const monthSpend = (monthRows ?? []).reduce((s, r) => s + Number(r.cost_usd), 0);
 
-  const { data: dayRows } = await admin
+  const { data: dayRows, error: dayError } = await admin
     .from('api_usage').select('cost_usd').gte('created_at', dayStart());
+  if (dayError) throw dayError;
   const daySpend = (dayRows ?? []).reduce((s, r) => s + Number(r.cost_usd), 0);
 
   // Alerts (standard server logging)
@@ -219,10 +158,11 @@ export async function logUsage(
 // ─────────────────────────────────────────────────────────────────────────────
 export async function getCostDashboard() {
   const admin = createAdminClient();
-  const { data } = await admin
+  const { data, error } = await admin
     .from('api_usage')
     .select('feature,user_id,cost_usd,created_at')
     .gte('created_at', yearStart());
+  if (error) throw error;
   const rows = data ?? [];
 
   const now = Date.now();

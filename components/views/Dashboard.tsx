@@ -38,7 +38,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, animation: 'fadeUp 0.25s ease' }}>
+    <div className="workspace-view" style={{ padding: 32, display: 'flex', flexDirection: 'column', gap: 22, animation: 'fadeUp 0.25s ease' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div>
@@ -69,18 +69,18 @@ export default function Dashboard() {
       )}
 
       {/* Upgrade promo + sponsored links — only for non-Pro users */}
-      {!isPro && <UpgradePromo isTrialing={isTrialing} trialDaysLeft={trialDaysLeft} darkMode={darkMode} dispatch={dispatch} />}
+      {!isPro && !isTrialing && <UpgradePromo isTrialing={isTrialing} trialDaysLeft={trialDaysLeft} darkMode={darkMode} dispatch={dispatch} />}
 
       {/* Stats grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
-        <StatCard label="Total Applied" value={String(applied.length)} sub="↑ 3 added this week" subColor="#059669" iconBg="#fce7f3" icon={<BriefcaseStatIcon />} darkMode={darkMode} />
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16 }}>
+        <StatCard label="Total Applied" value={String(applied.length)} sub="Across your saved records" subColor="#059669" iconBg="#fce7f3" icon={<BriefcaseStatIcon />} darkMode={darkMode} />
         <StatCard label="Interviews" value={String(interviews.length)} sub={`→ ${interviewRate}% interview rate`} subColor="#f59e0b" iconBg="#fffbeb" icon={<ChatIcon />} darkMode={darkMode} />
         <StatCard label="Avg. Match" value={String(avgMatch)} suffix="%" sub="Across all applications" subColor={t.m} iconBg="#fce7f3" icon={<SparkleStatIcon />} darkMode={darkMode} />
         <OfferCard count={offers.length} darkMode={darkMode} />
       </div>
 
       {/* Main grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 20, alignItems: 'start' }}>
+      <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 296px', gap: 20, alignItems: 'start' }}>
         {/* Recent applications */}
         <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '18px 22px 14px', borderBottom: `1px solid ${t.d}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -300,10 +300,10 @@ function UpgradePromo({ isTrialing, trialDaysLeft, darkMode, dispatch }: {
 
   const headline = isTrialing
     ? `You have ${trialDaysLeft} day${trialDaysLeft === 1 ? '' : 's'} left on your free trial`
-    : 'Your free trial has ended';
+    : 'Your Free plan';
   const sub = isTrialing
-    ? 'Upgrade to Pro to keep unlimited AI analyses, cover letters, and interview prep after your trial.'
-    : 'Upgrade to Pro to unlock unlimited AI analyses, cover letters, interview prep, and salary insights.';
+    ? 'Upgrade to Pro to keep more AI analyses, cover letters, and interview prep after your trial.'
+    : 'Upgrade to Pro to unlock more AI analyses, cover letters, interview prep, and salary insights.';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -336,7 +336,7 @@ function UpgradePromo({ isTrialing, trialDaysLeft, darkMode, dispatch }: {
           <span style={{ fontSize: 11, fontWeight: 700, color: textM, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Resources for your search</span>
           <span style={{ fontSize: 10, fontWeight: 700, color: textM, border: `1px solid ${border}`, borderRadius: 20, padding: '2px 8px' }}>Sponsored</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+        <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
           {SPONSORED.map(s => (
             <a
               key={s.label}

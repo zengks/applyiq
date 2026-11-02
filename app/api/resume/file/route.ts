@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import mammoth from 'mammoth';
+import sanitizeHtml from 'sanitize-html';
 import { createClient } from '@/lib/supabase/server';
 
 const MIME_BY_EXT: Record<string, string> = {
@@ -45,7 +46,13 @@ export async function GET(req: Request) {
   // Browsers can't render .docx inline, so for an inline view we convert it to HTML.
   if (ext === 'docx' && !downloadName) {
     const buffer = Buffer.from(await data.arrayBuffer());
-    const { value: body } = await mammoth.convertToHtml({ buffer });
+    const { value } = await mammoth.convertToHtml({ buffer });
+    const body = sanitizeHtml(value, {
+      allowedTags: ['p', 'br', 'strong', 'em', 'u', 's', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'a', 'blockquote', 'sup', 'sub'],
+      allowedAttributes: { a: ['href', 'title'], td: ['colspan', 'rowspan'], th: ['colspan', 'rowspan'] },
+      allowedSchemes: ['https', 'http', 'mailto'],
+      allowProtocolRelative: false,
+    });
     const title = path.split('/').pop()?.replace(/^[0-9a-f-]{36}-/i, '') ?? 'Resume';
     const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">`
       + `<title>${escapeHtml(title)}</title>`
@@ -54,7 +61,11 @@ export async function GET(req: Request) {
       + `line-height:1.6;color:#1a1917;}h1,h2,h3{line-height:1.3;}table{border-collapse:collapse;}`
       + `td,th{border:1px solid #ddd;padding:4px 8px;}</style></head><body>${body}</body></html>`;
     return new NextResponse(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, max-age=60' },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store',
+        'Content-Security-Policy': "sandbox; default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'",
+        'X-Content-Type-Options': 'nosniff',
+      },
     });
   }
 
@@ -67,6 +78,7 @@ export async function GET(req: Request) {
       'Content-Type': contentType,
       'Content-Disposition': disposition,
       'Cache-Control': 'private, max-age=60',
+      'X-Content-Type-Options': 'nosniff',
     },
   });
 }
