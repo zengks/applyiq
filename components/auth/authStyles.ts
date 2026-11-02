@@ -19,6 +19,23 @@ export const authStyles: Record<string, CSSProperties> = {
     padding: '36px 32px',
     boxShadow: '0 8px 30px rgba(0,0,0,0.06)',
   },
+  /* The auth screens are the only place with no sidebar or nav, so the card
+     carries the brand itself — otherwise it reads as a generic form. */
+  mark: {
+    width: 46,
+    height: 46,
+    margin: '0 auto 16px',
+    borderRadius: 13,
+    background: 'linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%)',
+    color: '#fff',
+    fontSize: 22,
+    fontWeight: 800,
+    lineHeight: '46px',
+    textAlign: 'center',
+    textDecoration: 'none',
+    display: 'block',
+    boxShadow: '0 4px 12px rgba(236,72,153,0.28)',
+  },
   brand: { fontSize: 22, fontWeight: 800, color: '#1c1b19', marginBottom: 6, textAlign: 'center' },
   subtitle: { fontSize: 14, color: '#6b6862', marginBottom: 28, textAlign: 'center' },
   label: { display: 'block', fontSize: 13, fontWeight: 600, color: '#1c1b19', marginBottom: 6 },
@@ -33,6 +50,8 @@ export const authStyles: Record<string, CSSProperties> = {
     background: '#faf9f7',
     color: '#1c1b19',
   },
+  /* Keeps typed characters from running under the reveal button. */
+  passwordInput: { paddingRight: 62 },
   button: {
     width: '100%',
     padding: '13px',
@@ -62,6 +81,24 @@ export const authStyles: Record<string, CSSProperties> = {
     padding: '12px 14px',
     borderRadius: 9,
     marginBottom: 20,
+  },
+  /* Wraps the password input so the reveal button can sit inside the field.
+     The button's `inset` bottom matches the input's own marginBottom, so it
+     tracks the field's height on its own — mobile grows the input's padding. */
+  passwordWrap: { position: 'relative' },
+  reveal: {
+    position: 'absolute',
+    inset: '0 0 16px auto',
+    display: 'flex',
+    alignItems: 'center',
+    padding: '0 13px',
+    background: 'none',
+    border: 'none',
+    color: '#8d8880',
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: '0.02em',
+    cursor: 'pointer',
   },
   footer: { fontSize: 14, color: '#6b6862', textAlign: 'center', marginTop: 22 },
   link: { color: '#ec4899', fontWeight: 600, textDecoration: 'none' },

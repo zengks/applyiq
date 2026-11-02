@@ -52,6 +52,12 @@ html, body {
   padding: 0;
 }
 
+/* iOS inflates text in landscape unless this is pinned. */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
   font-family: "Plus Jakarta Sans", sans-serif;
   background: var(--color-page-bg);
@@ -175,9 +181,108 @@ body.dark {
     padding: 8px 4px;
   }
 
+  /* The padding rule above is width-agnostic and would erase the gutter the
+     reveal button sits in, so restate it for the password field. */
+  .auth-password .auth-input { padding-right: 62px !important; }
+
+  /* 44px minimum tap target, without moving the label's optical position. */
+  .auth-reveal { min-width: 62px; justify-content: flex-end; }
+
   .auth-input,
   .auth-button,
-  .auth-link {
+  .auth-link,
+  .auth-reveal {
     -webkit-tap-highlight-color: rgba(236, 72, 153, 0.12);
   }
+}
+
+/* Interactive states. These belong here rather than in authStyles.ts for the
+   same reason as the media queries: a style attribute cannot express :focus,
+   :active or :-webkit-autofill. They apply at every width — the fields simply
+   had no focus indicator before, which is worst on a phone where the tapped
+   field is the only thing telling you where you are. */
+.auth-input {
+  /* iOS Safari otherwise paints its own inset shadow and corner radius. */
+  appearance: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease;
+}
+
+.auth-input::placeholder { color: #a9a49c; }
+
+.auth-input:focus {
+  border-color: #ec4899 !important;
+  background: #ffffff !important;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.15);
+}
+
+/* Chrome and Safari repaint an autofilled field pale blue, which overrides the
+   card's palette (the background is a UA-internal layer — only a full-bleed
+   inset shadow can cover it). The absurd transition delay stops the colour
+   from fading back in a moment after load. */
+.auth-input:-webkit-autofill,
+.auth-input:-webkit-autofill:hover {
+  -webkit-text-fill-color: #1c1b19;
+  -webkit-box-shadow: 0 0 0 1000px #faf9f7 inset;
+  box-shadow: 0 0 0 1000px #faf9f7 inset;
+  transition: background-color 600000s 0s;
+}
+.auth-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset, 0 0 0 3px rgba(236, 72, 153, 0.15);
+  box-shadow: 0 0 0 1000px #ffffff inset, 0 0 0 3px rgba(236, 72, 153, 0.15);
+}
+
+.auth-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  line-height: 1.45;
+}
+
+.auth-button {
+  appearance: none;
+  -webkit-appearance: none;
+  transition: background-color 0.15s ease, transform 0.1s ease;
+}
+.auth-button:disabled { cursor: not-allowed; }
+
+/* Guarded so a touch device doesn't keep the hover colour stuck after a tap. */
+@media (hover: hover) {
+  .auth-button:hover:not(:disabled) { background: #db2777 !important; }
+  .auth-reveal:hover { color: #1c1b19; }
+  .auth-link:hover { text-decoration: underline; }
+}
+
+/* On touch there is no hover, so the press state is the only feedback that a
+   tap registered — without it the button feels dead until the request returns. */
+.auth-button:active:not(:disabled) {
+  background: #be185d !important;
+  transform: scale(0.985);
+}
+.auth-mark:active { transform: scale(0.96); }
+.auth-reveal:active { color: #ec4899; }
+
+.auth-button:focus-visible,
+.auth-link:focus-visible,
+.auth-reveal:focus-visible,
+.auth-mark:focus-visible {
+  outline: 2px solid #ec4899;
+  outline-offset: 2px;
+}
+
+/* A phone in landscape gets ~390px of height; centring a full-height card there
+   pushes the button under the keyboard. Trade the ornament for the form. */
+@media (max-height: 560px) and (orientation: landscape) {
+  .auth-page { align-items: flex-start !important; }
+  .auth-card { padding: 22px 20px !important; }
+  .auth-mark { display: none !important; }
+  .auth-brand { font-size: 20px !important; }
+  .auth-subtitle { margin-bottom: 18px !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-input,
+  .auth-button { transition: none; }
+  .auth-button:active:not(:disabled),
+  .auth-mark:active { transform: none; }
 }
