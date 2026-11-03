@@ -50,6 +50,8 @@ Saved jobs are re-checked against their source so a dead link can't sit unnotice
 | `lib/types.ts` | All TypeScript interfaces |
 | `lib/store.tsx` | Reducer, hydration, queued writes, and account context |
 | `lib/persistenceQueue.ts` | Ordered writes, retained failures, and retry status |
+| `lib/jobWorkspace.ts` | Duplicate detection, immutable analysis inputs, job/workspace hydration |
+| `components/JobWorkspace.tsx` | Job text, résumé snapshots, analyses, letter versions, submissions, next action |
 | `lib/utils.ts` | Color helpers, status maps, date formatters |
 | `app/api/analyze/route.ts` | Claude API proxy (POST) |
 | `lib/postingCheck.ts` | Pure link-check classification (expiry phrases, SSRF guard, TTL) |
@@ -82,3 +84,6 @@ Read `README.md`, `docs/TESTING.md`, and `docs/DEPENDENCIES.md` before maintenan
 - URL checks must cover resolved addresses and every redirect, including IPv4-mapped IPv6. Do not replace the pinned connection with a second uncontrolled DNS lookup.
 - Do not manufacture ATS scores, chart values, trial state, discounts, or saved confirmations.
 - Never run the seed utility against production or restore a shared hardcoded test password.
+- Job materials and submission records are immutable to app users. Save a new version with fixed request IDs rather than updating a previous version. Keep the exact analysis inputs and submitted résumé/letter references.
+- Workspace writes use the shared queue. Check returned Supabase errors and account identity. Database bundle functions must remain atomic and use caller permissions with ownership constraints.
+- Native date controls and autofill may not emit React changes. Read submitted control values when saving dates; preserve locally edited fields when refreshing saved workspace data.

@@ -3,10 +3,12 @@
 import { useStore } from '@/lib/store';
 import { Application, AppStatus } from '@/lib/types';
 import { useState } from 'react';
+import { duplicateJobs } from '@/lib/jobWorkspace';
 
 export default function AddJobModal() {
-  const { showAddJobModal, newJob, darkMode, dispatch, checkPostings } = useStore();
+  const { showAddJobModal, newJob, darkMode, dispatch, checkPostings, applications } = useStore();
   const [submitting, setSubmitting] = useState(false);
+  const [duplicateConfirmed, setDuplicateConfirmed] = useState('');
 
   if (!showAddJobModal) return null;
 
@@ -26,9 +28,12 @@ export default function AddJobModal() {
     fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const,
   };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: t.m, marginBottom: 6, display: 'block', textTransform: 'uppercase' as const, letterSpacing: '0.06em' };
+  const duplicates = duplicateJobs(applications, newJob);
+  const duplicateKey = JSON.stringify([newJob.company, newJob.role, newJob.url, duplicates.map(app => app.id)]);
 
   async function handleSubmit() {
     if (submitting || !newJob.company.trim() || !newJob.role.trim()) return;
+    if (duplicates.length && duplicateConfirmed !== duplicateKey) return;
     setSubmitting(true);
     const app: Application = {
       id: crypto.randomUUID(),
@@ -40,6 +45,8 @@ export default function AddJobModal() {
       deadline: newJob.deadline || null,
       url: newJob.url,
       notes: newJob.notes,
+      description: newJob.description,
+      capturedAt: newJob.description.trim() ? new Date().toISOString() : null,
       postingStatus: 'unknown',
       postingCheckedAt: null,
       postingNote: '',
@@ -47,6 +54,7 @@ export default function AddJobModal() {
     const saved = await dispatch({ type: 'ADD_APP', app });
     setSubmitting(false);
     dispatch({ type: 'CLOSE_ADD_JOB' });
+    dispatch({ type: 'OPEN_DETAIL', id: app.id });
     // Verify the link right away so a dead posting is flagged before the user
     // starts working on it.
     if (saved && app.url.trim()) void checkPostings([app.id]);
@@ -58,36 +66,36 @@ export default function AddJobModal() {
   return (
     <>
       <div onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
-      <div style={{
+      <div role="dialog" aria-modal="true" aria-labelledby="add-job-title" style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
         width: 520, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', background: t.card, borderRadius: 16, padding: 28, zIndex: 60,
         boxShadow: '0 24px 64px rgba(0,0,0,0.18)', animation: 'scaleIn 0.15s ease',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-          <h2 style={{ fontSize: 18, fontWeight: 800, color: t.p, margin: 0, letterSpacing: '-0.4px' }}>Add Job Application</h2>
-          <button onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${t.d}`, background: 'transparent', cursor: 'pointer', color: t.m, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+          <h2 id="add-job-title" style={{ fontSize: 18, fontWeight: 800, color: t.p, margin: 0, letterSpacing: '-0.4px' }}>Add Job Application</h2>
+          <button aria-label="Close add job" onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${t.d}`, background: 'transparent', cursor: 'pointer', color: t.m, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
           <div>
-            <label style={labelStyle}>Company *</label>
-            <input style={inputStyle} placeholder="e.g. Google" value={newJob.company} onChange={set('company')} />
+            <label htmlFor="add-job-company" style={labelStyle}>Company *</label>
+            <input id="add-job-company" maxLength={500} style={inputStyle} placeholder="e.g. Google" value={newJob.company} onChange={set('company')} />
           </div>
           <div>
-            <label style={labelStyle}>Job Title *</label>
-            <input style={inputStyle} placeholder="e.g. Software Engineer" value={newJob.role} onChange={set('role')} />
+            <label htmlFor="add-job-role" style={labelStyle}>Job Title *</label>
+            <input id="add-job-role" maxLength={500} style={inputStyle} placeholder="e.g. Software Engineer" value={newJob.role} onChange={set('role')} />
           </div>
         </div>
 
         <div style={{ marginBottom: 14 }}>
-          <label style={labelStyle}>Job Posting URL</label>
-          <input style={inputStyle} placeholder="https://..." value={newJob.url} onChange={set('url')} />
+          <label htmlFor="add-job-url" style={labelStyle}>Job Posting URL</label>
+          <input id="add-job-url" maxLength={4096} style={inputStyle} placeholder="https://..." value={newJob.url} onChange={set('url')} />
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
           <div>
-            <label style={labelStyle}>Status</label>
-            <select style={{ ...inputStyle, cursor: 'pointer' }} value={newJob.status} onChange={set('status')}>
+            <label htmlFor="add-job-status" style={labelStyle}>Status</label>
+            <select id="add-job-status" style={{ ...inputStyle, cursor: 'pointer' }} value={newJob.status} onChange={set('status')}>
               <option value="saved">Saved</option>
               <option value="applied">Applied</option>
               <option value="interview">Interview</option>
@@ -95,11 +103,19 @@ export default function AddJobModal() {
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Deadline</label>
-            <input type="date" style={inputStyle} value={newJob.deadline} onChange={set('deadline')} />
+            <label htmlFor="add-job-deadline" style={labelStyle}>Deadline</label>
+            <input id="add-job-deadline" type="date" style={inputStyle} value={newJob.deadline} onChange={set('deadline')} />
           </div>
         </div>
 
+        <div style={{ marginBottom: 22 }}>
+          <label style={labelStyle}>Posting description (preserved with this job)</label>
+          <textarea aria-label="Job posting description" maxLength={60000} style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }} value={newJob.description} onChange={set('description')} placeholder="Paste the posting now so you can keep it after the source closes." />
+        </div>
+        {duplicates.length > 0 && <div role="alert" style={{ marginBottom: 18, padding: 14, borderRadius: 9, background: '#fffbeb', color: '#92400e', fontSize: 13 }}>
+          A similar application already exists. {duplicates.map(app => <button key={app.id} onClick={() => { dispatch({ type: 'CLOSE_ADD_JOB' }); dispatch({ type: 'OPEN_DETAIL', id: app.id }); }}>{app.company} — {app.role}</button>)}
+          <label style={{ display: 'block', marginTop: 10 }}><input type="checkbox" checked={duplicateConfirmed === duplicateKey} onChange={e => setDuplicateConfirmed(e.target.checked ? duplicateKey : '')} /> This is a separate opportunity; create it anyway.</label>
+        </div>}
         <div style={{ marginBottom: 22 }}>
           <label style={labelStyle}>Notes</label>
           <textarea style={{ ...inputStyle, minHeight: 90, resize: 'vertical', lineHeight: 1.6 }} placeholder="Any notes about this role..." value={newJob.notes} onChange={set('notes')} />
@@ -111,7 +127,7 @@ export default function AddJobModal() {
           </button>
           <button
             onClick={handleSubmit}
-            disabled={submitting || !newJob.company.trim() || !newJob.role.trim()}
+            disabled={submitting || !newJob.company.trim() || !newJob.role.trim() || (duplicates.length > 0 && duplicateConfirmed !== duplicateKey)}
             style={{ padding: '10px 22px', background: newJob.company.trim() && newJob.role.trim() ? '#ec4899' : '#e5e7eb', color: newJob.company.trim() && newJob.role.trim() ? '#fff' : '#9ca3af', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: newJob.company.trim() && newJob.role.trim() ? 'pointer' : 'not-allowed', fontFamily: 'inherit' }}
           >
             {submitting ? 'Saving…' : 'Add Application'}

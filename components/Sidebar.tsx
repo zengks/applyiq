@@ -91,7 +91,7 @@ function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: N
         background: active ? activeBg : 'transparent',
         color: active ? activeTxt : inactiveTxt,
         borderLeft: active ? '2px solid #ec4899' : '2px solid transparent',
-        marginBottom: 2, width: '100%', border: 'none', fontFamily: 'inherit', textAlign: 'left',
+        marginBottom: 2, width: '100%', borderTop: 0, borderRight: 0, borderBottom: 0, fontFamily: 'inherit', textAlign: 'left',
         transition: 'background 0.15s',
       }}
       onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}
@@ -170,7 +170,7 @@ export default function Sidebar({ open = false, onNavigate }: { open?: boolean; 
             style={{
               width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
               borderRadius: 7, cursor: 'pointer', fontSize: 13, fontWeight: 500, textAlign: 'left',
-              color: darkMode ? '#8a8784' : '#6b6864', border: 'none', borderLeft: '2px solid transparent',
+              color: darkMode ? '#8a8784' : '#6b6864', borderTop: 0, borderRight: 0, borderBottom: 0, borderLeft: '2px solid transparent',
               background: 'transparent', fontFamily: 'inherit',
             }}
             onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = darkMode ? 'rgba(255,255,255,0.05)' : '#f9f7f5'; }}

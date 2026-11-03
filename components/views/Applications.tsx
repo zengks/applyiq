@@ -133,6 +133,10 @@ function KanbanCard({ app, darkMode, colColor, checking, dragging, onOpen, onDra
   return (
     <div
       draggable
+      role="button"
+      tabIndex={0}
+      aria-label={`Open workspace: ${app.role} at ${app.company}`}
+      onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}
       onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', app.id); onDragStart(); }}
       onDragEnd={onDragEnd}
       onClick={onOpen}
@@ -154,6 +158,9 @@ function KanbanCard({ app, darkMode, colColor, checking, dragging, onOpen, onDra
       </div>
       <div style={{ fontSize: 13, fontWeight: 700, color: textP, marginBottom: 3, textDecoration: rejected ? 'line-through' : 'none' }}>{app.role}</div>
       <div style={{ fontSize: 12, color: textM, marginBottom: app.deadline || posting || checking ? 8 : 0 }}>{app.company}</div>
+      {app.nextAction && <div style={{ fontSize: 11, lineHeight: 1.6, color: textM, marginBottom: 8, textDecoration: app.nextActionDone ? 'line-through' : undefined }}>
+        {app.nextActionDone ? '✓ ' : 'Next: '}{app.nextAction}{app.nextActionDue ? ` · ${app.nextActionDue}` : ''}
+      </div>}
       {posting && (
         <div
           title={app.postingNote || undefined}

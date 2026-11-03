@@ -121,18 +121,11 @@ describe('reducer', () => {
     expect(reset).toMatchObject({ analysisShown: false, aiResult: null, jobDescription: '', jobUrl: '' });
   });
 
-  it('SAVE_AI_TO_BOARD is a no-op without a result', () => {
-    const next = reducer(INITIAL, { type: 'SAVE_AI_TO_BOARD' });
-    expect(next).toBe(INITIAL);
-  });
-
-  it('SAVE_AI_TO_BOARD prepends an app and switches view', () => {
-    const start: State = { ...INITIAL, aiResult, jobUrl: 'http://x' };
-    const next = reducer(start, { type: 'SAVE_AI_TO_BOARD' });
-    expect(next.activeView).toBe('applications');
-    expect(next.applications[0]).toMatchObject({ company: 'Linear', role: 'FE', match: 88, url: 'http://x', status: 'saved' });
-    expect(typeof next.applications[0].id).toBe('string');
-    expect(next.applications[0].id.length).toBeGreaterThan(0);
+  it('SYNC_APP refreshes an existing workspace without duplicating the board row', () => {
+    const existing = app({ id: 'job', company: 'Before' });
+    const next = reducer({ ...INITIAL, applications: [existing] }, { type: 'SYNC_APP', app: { ...existing, company: 'After', nextAction: 'Follow up' } });
+    expect(next.applications).toHaveLength(1);
+    expect(next.applications[0]).toMatchObject({ company: 'After', nextAction: 'Follow up' });
   });
 
   it('SET_DEFAULT_RESUME makes exactly one default', () => {

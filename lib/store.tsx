@@ -5,10 +5,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createClient } from './supabase/client';
 import {
   Application, AIResult, Resume, ActiveView, ActiveTab, BillingCycle,
-  NewJobForm, AppStatus, Subscription, SubStatus, PostingStatus, PostingCheckResult,
+  NewJobForm, AppStatus, Subscription, SubStatus, PostingCheckResult, AnalysisInput,
 } from './types';
 import { needsCheck, MAX_URLS_PER_CHECK } from './postingCheck';
 import { PersistenceQueue, type SyncStatus } from './persistenceQueue';
+import { mapApplicationRow } from './jobWorkspace';
 
 export interface State {
   loading: boolean;
@@ -31,6 +32,7 @@ export interface State {
   aiLoading: boolean;
   analysisShown: boolean;
   aiResult: AIResult | null;
+  analysisInput: AnalysisInput | null;
   aiError: boolean;
   aiErrorMsg: string;
   activeTab: ActiveTab;
@@ -65,6 +67,7 @@ export type Action =
   | { type: 'CLOSE_PRICING' }
   | { type: 'SET_BILLING'; cycle: BillingCycle }
   | { type: 'ADD_APP'; app: Application }
+  | { type: 'SYNC_APP'; app: Application }
   | { type: 'UPDATE_APP_STATUS'; id: string; status: AppStatus }
   | { type: 'UPDATE_APP_NOTES'; id: string; notes: string }
   | { type: 'DELETE_APP'; id: string }
@@ -78,11 +81,10 @@ export type Action =
   | { type: 'SET_JOB_URL'; value: string }
   | { type: 'SET_JOB_DESC'; value: string }
   | { type: 'AI_START' }
-  | { type: 'AI_SUCCESS'; result: AIResult }
+  | { type: 'AI_SUCCESS'; result: AIResult; input?: AnalysisInput }
   | { type: 'AI_ERROR'; message?: string }
   | { type: 'AI_RESET' }
   | { type: 'SET_TAB'; tab: ActiveTab }
-  | { type: 'SAVE_AI_TO_BOARD' }
   | { type: 'SET_COVER_COPIED'; value: boolean }
   | { type: 'SET_DEFAULT_RESUME'; id: string }
   | { type: 'ADD_RESUME'; resume: Resume }
@@ -91,7 +93,7 @@ export type Action =
   | { type: 'POSTING_CHECK_FAIL'; ids: string[]; message: string };
 
 function emptyNewJob(): NewJobForm {
-  return { company: '', role: '', url: '', status: 'saved', deadline: '', notes: '' };
+  return { company: '', role: '', url: '', status: 'saved', deadline: '', notes: '', description: '' };
 }
 
 export const INITIAL: State = {
@@ -115,6 +117,7 @@ export const INITIAL: State = {
   aiLoading: false,
   analysisShown: false,
   aiResult: null,
+  analysisInput: null,
   aiError: false,
   aiErrorMsg: '',
   activeTab: 'keywords',
@@ -150,6 +153,8 @@ export function reducer(state: State, action: Action): State {
     // OPEN_PRICING / CLOSE_PRICING are handled in the dispatch wrapper (separate useState).
     case 'SET_BILLING': return { ...state, billingCycle: action.cycle };
     case 'ADD_APP': return { ...state, applications: [action.app, ...state.applications] };
+    case 'SYNC_APP': return { ...state, applications: state.applications.some(app => app.id === action.app.id)
+      ? state.applications.map(app => app.id === action.app.id ? action.app : app) : [action.app, ...state.applications] };
     case 'UPDATE_APP_STATUS': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, status: action.status } : a) };
     case 'UPDATE_APP_NOTES': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, notes: action.notes } : a) };
     case 'DELETE_APP': return { ...state, applications: state.applications.filter(a => a.id !== action.id), showDetailDrawer: false, selectedAppId: null };
@@ -163,28 +168,10 @@ export function reducer(state: State, action: Action): State {
     case 'SET_JOB_URL': return { ...state, jobUrl: action.value };
     case 'SET_JOB_DESC': return { ...state, jobDescription: action.value };
     case 'AI_START': return { ...state, aiLoading: true, aiError: false, aiErrorMsg: '', analysisShown: false };
-    case 'AI_SUCCESS': return { ...state, aiLoading: false, analysisShown: true, aiResult: action.result, activeTab: 'keywords' };
+    case 'AI_SUCCESS': return { ...state, aiLoading: false, analysisShown: true, aiResult: action.result, analysisInput: action.input ?? null, activeTab: 'keywords' };
     case 'AI_ERROR': return { ...state, aiLoading: false, aiError: true, aiErrorMsg: action.message ?? '' };
-    case 'AI_RESET': return { ...state, aiLoading: false, aiError: false, aiErrorMsg: '', analysisShown: false, aiResult: null, jobDescription: '', jobUrl: '' };
+    case 'AI_RESET': return { ...state, aiLoading: false, aiError: false, aiErrorMsg: '', analysisShown: false, aiResult: null, analysisInput: null, jobDescription: '', jobUrl: '' };
     case 'SET_TAB': return { ...state, activeTab: action.tab };
-    case 'SAVE_AI_TO_BOARD': {
-      if (!state.aiResult) return state;
-      const newApp: Application = {
-        id: crypto.randomUUID(),
-        createdAt: new Date().toISOString(),
-        company: state.aiResult.company || 'Unknown',
-        role: state.aiResult.role || 'Unknown',
-        status: 'saved',
-        match: state.aiResult.matchScore,
-        deadline: null,
-        url: state.jobUrl,
-        notes: '',
-        postingStatus: 'unknown',
-        postingCheckedAt: null,
-        postingNote: '',
-      };
-      return { ...state, applications: [newApp, ...state.applications], activeView: 'applications' };
-    }
     case 'SET_COVER_COPIED': return { ...state, coverCopied: action.value };
     case 'SET_DEFAULT_RESUME': return { ...state, resumeText: state.resumes.find(r => r.id === action.id)?.text ?? state.resumeText, resumes: state.resumes.map(r => ({ ...r, isDefault: r.id === action.id })) };
     case 'ADD_RESUME': return { ...state, resumeText: action.resume.isDefault ? action.resume.text : state.resumeText, resumes: [action.resume, ...state.resumes] };
@@ -224,6 +211,7 @@ function appRow(a: Application, userId: string) {
     id: a.id, user_id: userId, company: a.company, role: a.role,
     status: a.status, match: a.match, deadline: a.deadline, url: a.url, notes: a.notes,
     posting_status: a.postingStatus, posting_checked_at: a.postingCheckedAt, posting_note: a.postingNote,
+    description: a.description ?? '', captured_at: a.capturedAt ?? (a.description ? a.createdAt ?? new Date().toISOString() : null),
   };
 }
 function resumeRow(r: Resume, userId: string) {
@@ -234,7 +222,7 @@ function resumeRow(r: Resume, userId: string) {
 }
 
 const PERSISTED_ACTIONS = new Set([
-  'ADD_APP', 'SAVE_AI_TO_BOARD', 'UPDATE_APP_STATUS', 'UPDATE_APP_NOTES', 'DELETE_APP',
+  'ADD_APP', 'UPDATE_APP_STATUS', 'UPDATE_APP_NOTES', 'DELETE_APP',
   'POSTING_CHECK_DONE', 'ADD_RESUME', 'SET_DEFAULT_RESUME', 'SET_PROFILE', 'SET_DARK',
   'SET_BILLING', 'CLOSE_ONBOARDING',
 ]);
@@ -246,8 +234,7 @@ function checked<T extends { error: unknown }>(result: T): T {
 
 export async function persistAction(action: Action, state: State, supabase: SupabaseClient, userId: string) {
     switch (action.type) {
-      case 'ADD_APP':
-      case 'SAVE_AI_TO_BOARD': {
+      case 'ADD_APP': {
         const app = state.applications[0];
         if (app) checked(await supabase.from('applications').upsert(appRow(app, userId)).select('id').single());
         break;
@@ -368,6 +355,8 @@ interface Ctx extends State, DerivedValues {
   retryLoad: () => Promise<void>;
   retrySave: () => Promise<void>;
   discardUnsaved: () => Promise<void>;
+  saveWorkspace: (run: (client: SupabaseClient) => Promise<void>) => Promise<boolean>;
+  workspaceClient: SupabaseClient;
   /** Re-checks the given postings (all due ones when omitted) against their source. */
   checkPostings: (ids?: string[]) => Promise<void>;
 }
@@ -426,14 +415,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         darkMode: Boolean(profile?.dark_mode),
         billingCycle: (profile?.billing_cycle as BillingCycle) ?? 'annual',
         onboarded: Boolean(profile?.onboarded),
-        applications: (appsRes.data ?? []).map((a): Application => ({
-          id: a.id, createdAt: a.created_at, company: a.company, role: a.role, status: a.status,
-          match: a.match, deadline: a.deadline, url: a.url, notes: a.notes,
-          // Defaults keep the app working before the posting_status migration is applied.
-          postingStatus: (a.posting_status as PostingStatus) ?? 'unknown',
-          postingCheckedAt: a.posting_checked_at ?? null,
-          postingNote: a.posting_note ?? '',
-        })),
+        applications: (appsRes.data ?? []).map(mapApplicationRow),
         resumes: (resumesRes.data ?? []).map((r): Resume => ({
           id: r.id, name: r.name, updatedAt: (r.updated_at ?? '').slice(0, 10),
           jobsMatched: r.jobs_matched, atsScore: r.ats_score, isDefault: r.is_default,
@@ -483,6 +465,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return Promise.resolve(true);
   }, [supabase, saveQueue]);
 
+  const saveWorkspace = useCallback((run: (client: SupabaseClient) => Promise<void>) => {
+    const owner = userIdRef.current;
+    if (!owner) return Promise.resolve(false);
+    return saveQueue.enqueue(async () => {
+      const { data, error } = await supabase.auth.getUser();
+      if (error) throw error;
+      if (data.user?.id !== owner) throw new Error('Account changed. Reload before saving.');
+      await run(supabase);
+    });
+  }, [supabase, saveQueue]);
+
   // Ask the server whether saved postings are still live. With no ids, checks
   // everything that's due; skips anything already in flight.
   const checkPostings = useCallback(async (ids?: string[]) => {
@@ -528,7 +521,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const derived = deriveStoreValues(state, Date.now());
 
   return (
-    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, checkPostings, syncStatus, loadError, retryLoad: hydrate, retrySave: () => saveQueue.retry(), discardUnsaved: async () => { saveQueue.discard(); window.location.reload(); }, ...derived }}>
+    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, checkPostings, syncStatus, loadError, workspaceClient: supabase, saveWorkspace, retryLoad: hydrate, retrySave: () => saveQueue.retry(), discardUnsaved: async () => { saveQueue.discard(); window.location.reload(); }, ...derived }}>
       {children}
     </StoreCtx.Provider>
   );

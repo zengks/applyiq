@@ -19,14 +19,14 @@ const PLANS: PlanDef[] = [
   {
     tier: 'free',
     name: 'Free Forever',
-    features: ['5 applications', '1 resume', '3 AI requests/calendar month', 'Basic dashboard'],
+    features: ['5 applications', '1 vault resume', '3 AI requests/calendar month', 'Job workspaces and material history'],
     highlight: false,
     available: true,
   },
   {
     tier: 'pro',
     name: 'Pro',
-    features: ['Unlimited applications', '3 resume versions', 'AI analyses with fair-use limits', 'Cover letter generator', 'Interview prep', 'Salary insights'],
+    features: ['Unlimited applications', '3 vault resumes', 'AI analyses with fair-use limits', 'Cover letter generator', 'Interview prep', 'Salary insights'],
     highlight: true,
     badge: 'MOST POPULAR',
     available: true,

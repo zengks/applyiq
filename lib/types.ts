@@ -19,6 +19,13 @@ export interface Application {
   deadline: string | null;
   url: string;
   notes: string;
+  description?: string;
+  capturedAt?: string | null;
+  appliedAt?: string | null;
+  nextAction?: string;
+  nextActionDue?: string | null;
+  nextActionDone?: boolean;
+  selectedResumeId?: string | null;
   /** Result of the last posting-link check. */
   postingStatus: PostingStatus;
   /** ISO timestamp of the last check, or null if never checked. */
@@ -44,6 +51,8 @@ export interface AnalysisCost {
 }
 
 export interface AIResult {
+  /** Posting text captured by the server, or the user's pasted fallback. */
+  jobPostingText?: string;
   matchScore: number;
   role: string;
   company: string;
@@ -94,4 +103,31 @@ export interface NewJobForm {
   status: AppStatus;
   deadline: string;
   notes: string;
+  description: string;
 }
+
+export interface AnalysisInput {
+  jobUrl: string;
+  jobDescription: string;
+  resumeText: string;
+  resumeName: string;
+  sourceResumeId: string | null;
+  filePath: string | null;
+}
+
+interface MaterialBase { id: string; applicationId: string; title: string; createdAt: string }
+export type JobMaterial = MaterialBase & (
+  | { kind: 'resume'; body: { name: string; text: string; filePath: string | null; sourceResumeId: string | null } }
+  | { kind: 'analysis'; body: { result: AIResult; resumeVersionId: string | null; jobDescription: string; jobUrl: string } }
+  | { kind: 'cover_letter'; body: { text: string; analysisVersionId: string | null } }
+);
+export interface JobSubmission {
+  id: string;
+  applicationId: string;
+  resumeVersionId: string;
+  coverLetterVersionId: string | null;
+  submittedOn: string;
+  createdAt: string;
+}
+export interface JobStatusEvent { id: string; status: AppStatus; createdAt: string }
+export interface JobWorkspaceData { materials: JobMaterial[]; submissions: JobSubmission[]; events: JobStatusEvent[] }

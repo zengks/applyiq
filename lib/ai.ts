@@ -1,8 +1,8 @@
 import { AIResult } from './types';
 import { z } from 'zod';
 
-const analysisSchema = z.object({
-  matchScore: z.number().min(0).max(100),
+export const analysisSchema = z.object({
+  matchScore: z.number().min(0).max(100).transform(Math.round),
   role: z.string().max(500), company: z.string().max(500),
   matchedKeywords: z.array(z.string().max(500)).max(100),
   missingKeywords: z.array(z.string().max(500)).max(100),

@@ -26,11 +26,13 @@ The crowded feature set makes another generic cover-letter generator a weak prod
 
 Before accepting real payments, complete the Stripe lifecycle tests and hosted Auth/settings checks in [TESTING.md](TESTING.md). Billing was verified in test mode.
 
-## Milestone 1 Make each application a complete workspace
+## Milestone 1 Complete job workspace — implemented
 
-Build this next, with one flow: save a job, choose a résumé, review an analysis, save application materials, and set a next action.
+Implemented flow: save a job, choose a résumé snapshot, review an analysis, save application materials, record submitted versions, and set a next action.
 
-Add the original description and capture timestamp, a chosen résumé version, saved analysis and cover-letter versions, an application date, and a status-change timeline. Preserve the posting after its source closes. Detect duplicates using a normalized URL and company/role confirmation.
+The workspace now includes captured description text, a chosen résumé version, saved analyses and cover-letter versions, application dates, submission records, and a status-change timeline. Text remains available after the source closes. Creation checks normalized URLs and company/role matches and asks for confirmation when a similar application exists.
+
+Backend verification used disposable accounts to test isolation, immutable snapshots, concurrent retries, complete-bundle rollback, and submission references. Browser verification covered save/reload, version editing, exact submitted materials, a next-action due date, duplicate confirmation, and a 390px viewport. Analysis fixtures were synthetic; paid provider calls were mocked. See [TESTING.md](TESTING.md) for repeatable checks and remaining launch work.
 
 Completion criteria:
 
@@ -39,7 +41,7 @@ Completion criteria:
 - Refreshing, retrying, or losing a connection does not create duplicate applications or hide an unsaved change.
 - A saved job remains useful after its source expires.
 
-## Milestone 2 Show what needs attention today
+## Milestone 2 Show what needs attention today — next
 
 Add a Today view with interviews, deadlines, user-set follow-up dates, and incomplete tasks. Attach recruiter/referral contacts and notes to jobs. Offer calendar export and editable follow-up drafts. Keep external sending under the user's control.
 
@@ -92,6 +94,8 @@ Add data export, account/data deletion controls, and a clear explanation of whic
 | Before wider release | Measure representative desktop and phone flows. | Target p75 LCP below 2.5 seconds and interaction latency below 200 ms; record measurements before claiming success. |
 
 Track AI cost per completed application, failed-fetch rate, save failure/recovery rate, and time to first saved job. Use those measurements to choose model/caching changes and pricing limits.
+
+The hosted performance advisor still reports seven [RLS initialization-plan warnings](https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan) in older account/application policies. The new workspace policies already use cached `auth.uid()` subqueries and ownership indexes. Optimize the older policies in a separate measured migration. Keep new reference indexes until representative usage justifies removing them; an unused-index notice alone is insufficient evidence. Also review the hosted Postgres minor version against the [Supabase changelog](https://supabase.com/changelog/tzdata-local-time-vancouver-edmonton-casablanca) before a wider release.
 
 ## Validate before expanding
 

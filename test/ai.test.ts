@@ -8,6 +8,9 @@ const sample = {
 };
 
 describe('parseAIResponse', () => {
+  it('normalizes advisory scores for the integer application column', () => {
+    expect(parseAIResponse(JSON.stringify({ ...sample, matchScore: 84.6 })).matchScore).toBe(85);
+  });
   it('parses clean JSON', () => {
     expect(parseAIResponse(JSON.stringify(sample))).toEqual(sample);
   });
@@ -91,7 +94,7 @@ function req(body: unknown) {
   });
 }
 const ok = () => ({ stop_reason: 'end_turn', content: [
-  { type: 'web_fetch_tool_result', content: { type: 'web_fetch_result' } },
+  { type: 'web_fetch_tool_result', content: { type: 'web_fetch_result', url: 'https://jobs.example.com/1', content: { source: { type: 'text', data: 'Original job posting content' } } } },
   { type: 'text', text: JSON.stringify(sample) },
 ] });
 
@@ -107,6 +110,21 @@ describe('POST /api/analyze', () => {
     const res = await POST(req({ jobDescription: 'pasted text' }) as never);
     expect(res.status).toBe(400);
     expect(create).not.toHaveBeenCalled();
+  });
+
+  it('analyzes saved text without a URL or network fetch tool', async () => {
+    create.mockResolvedValue({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(sample) }] });
+    const res = await POST(req({ jobUrl: '', jobDescription: 'Preserved closed posting', resumeText: 'Candidate experience' }) as never);
+    expect(res.status).toBe(200);
+    expect((await res.json()).jobPostingText).toBe('Preserved closed posting');
+    expect(create.mock.calls[0][0].tools).toBeUndefined();
+  });
+
+  it('returns a text snapshot of the fetched posting for the workspace', async () => {
+    create.mockResolvedValue(ok());
+    const res = await POST(req({ jobUrl: 'https://jobs.example.com/1' }) as never);
+    expect(res.status).toBe(200);
+    expect((await res.json()).jobPostingText).toBe('Original job posting content');
   });
 
   it('returns 400 when jobUrl is not http(s)', async () => {

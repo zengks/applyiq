@@ -2,6 +2,7 @@
 
 import { useStore } from '@/lib/store';
 import { ActiveTab } from '@/lib/types';
+import SaveAnalysisToWorkspace from '@/components/SaveAnalysisToWorkspace';
 
 const TABS: { key: ActiveTab; label: string }[] = [
   { key: 'keywords',  label: 'Keywords' },
@@ -11,7 +12,7 @@ const TABS: { key: ActiveTab; label: string }[] = [
 ];
 
 export default function AIAnalysis() {
-  const { jobUrl, jobDescription, aiLoading, analysisShown, aiResult, aiError, aiErrorMsg, activeTab, resumeText, darkMode, coverCopied, dispatch } = useStore();
+  const { jobUrl, jobDescription, aiLoading, analysisShown, aiResult, aiError, aiErrorMsg, activeTab, resumeText, darkMode, coverCopied, dispatch, resumes, analysisInput } = useStore();
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -28,17 +29,19 @@ export default function AIAnalysis() {
   const inputStyle = { width: '100%', padding: '10px 14px', borderRadius: 9, border: `1px solid ${t.inputBorder}`, background: t.inputBg, color: t.p, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' as const };
 
   async function handleAnalyze() {
-    if (!jobUrl.trim()) return;
+    if (aiLoading || (!jobUrl.trim() && !jobDescription.trim())) return;
+    const source = resumes.find(resume => resume.isDefault && resume.text === resumeText);
+    const input = { jobUrl, jobDescription, resumeText, resumeName: source?.name ?? 'Profile background', sourceResumeId: source?.id ?? null, filePath: source?.filePath ?? null };
     dispatch({ type: 'AI_START' });
     try {
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jobUrl, jobDescription, resumeText }),
+        body: JSON.stringify(input),
       });
       const data = await res.json();
       if (!res.ok || data.error) throw new Error(data.error || `Request failed (${res.status})`);
-      dispatch({ type: 'AI_SUCCESS', result: data });
+      dispatch({ type: 'AI_SUCCESS', result: data, input });
     } catch (err) {
       dispatch({ type: 'AI_ERROR', message: err instanceof Error ? err.message : 'Analysis failed.' });
     }
@@ -73,11 +76,11 @@ export default function AIAnalysis() {
       {!analysisShown && (
         <div style={cardStyle}>
           <div className="responsive-grid" style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, marginBottom: 16 }}>
-            <input style={inputStyle} placeholder="Job posting URL (required) — AI reads the page for you" value={jobUrl} onChange={e => dispatch({ type: 'SET_JOB_URL', value: e.target.value })} />
+            <input style={inputStyle} placeholder="Job posting URL — or paste the saved description below" value={jobUrl} onChange={e => dispatch({ type: 'SET_JOB_URL', value: e.target.value })} />
             <button
               onClick={handleAnalyze}
-              disabled={aiLoading || !jobUrl.trim()}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: aiLoading || !jobUrl.trim() ? '#e5e7eb' : '#ec4899', color: aiLoading || !jobUrl.trim() ? '#9ca3af' : '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: aiLoading || !jobUrl.trim() ? 'not-allowed' : 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}
+              disabled={aiLoading || (!jobUrl.trim() && !jobDescription.trim())}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 20px', background: '#ec4899', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' as const }}
             >
               {aiLoading ? (
                 <>
@@ -152,12 +155,7 @@ export default function AIAnalysis() {
                 Cost: ${aiResult.cost.costUsd.toFixed(4)}
               </div>
             )}
-            <button
-              onClick={() => dispatch({ type: 'SAVE_AI_TO_BOARD' })}
-              style={{ width: '100%', marginTop: 16, padding: '9px', background: t.inner, color: t.p, border: `1px solid ${t.d}`, borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}
-            >
-              Save to Board
-            </button>
+            {analysisInput && <SaveAnalysisToWorkspace result={aiResult} input={analysisInput} />}
           </div>
 
           {/* Tabs panel */}

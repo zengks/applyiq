@@ -2,6 +2,21 @@
 
 ApplyIQ helps job seekers track applications, manage résumés, and prepare job-specific match reports, cover letters, and interview questions.
 
+## Job workspaces
+
+Open any application card to work with everything for that job:
+
+1. Save the posting text and its capture date. A saved description can be analyzed after the source disappears, including jobs without a URL.
+2. Attach a snapshot from the résumé vault, or paste a tailored version. Edits create new versions and leave earlier snapshots intact.
+3. Analyze the selected résumé against the saved description. The résumé reference, analysis, and generated letter are saved together. Standalone AI results can also be saved to a new or existing application with the exact inputs used for that analysis.
+4. Edit and save cover-letter versions; download résumé and letter text.
+5. Record the submission date and exact résumé/letter versions actually sent. Reopening that record selects those versions, even after later edits.
+6. Save a next action, due date, and completion state. The board shows the next action. Status changes have a timeline from this release onward.
+
+Similar URLs and company/title pairs prompt confirmation before creating another job. Queued saves reuse fixed record IDs, show failures, and retain the operation for retry. Unsaved form edits warn before closing. Keep the page open until queued writes finish; drafts and queued operations are currently held in memory.
+
+Vault slots remain plan-limited. Each job can keep up to 200 material versions across résumés, analyses, and letters. The workspace shows the latest 100 submission records and 200 status events. Résumé text snapshots remain independent of the vault; the optional original-file link uses the existing private file and can become unavailable if that source file is removed. Recording a submission does not send an application, and next actions do not send notifications.
+
 ## Run locally
 
 Use Node 26, or a version satisfying the `engines` field in `package.json`.
@@ -19,9 +34,11 @@ Supabase supplies Auth, Postgres, and private résumé storage. Anthropic suppli
 
 ## Database setup
 
-For a new database, apply the SQL files in `supabase/migrations` in order. The hardening migration adds atomic default-résumé selection, plan enforcement, AI usage reservations, checkout coordination, and webhook event records. It includes the posting-status columns for older installations that missed `0003`.
+For a new database, apply the SQL files in `supabase/migrations` in order. The hardening migration adds atomic default-résumé selection, plan enforcement, AI usage reservations, checkout coordination, and webhook event records. It includes the posting-status columns for older installations that missed `0003`. The job-workspace migration adds immutable materials, submitted-version references, next actions, and status events with account and application ownership constraints.
 
 The original installation used the SQL Editor, so `0001`–`0003` may not have entries in hosted migration history. Reconcile that baseline before using `supabase db push` against an existing project. Do not replay an old baseline after hardening, because the older scripts recreate access policies.
+
+The timestamped migration filenames match the versions recorded by the hosted migration runner. Their SQL checksums were verified against hosted history; the filename alignment does not change or reapply the SQL.
 
 In Supabase Auth, configure the site URL and confirmation redirect URL (`/auth/callback`). Review the password policy and leaked-password protection in the dashboard. The signup form requires 12 characters; the hosted Auth policy must be configured separately.
 
@@ -45,7 +62,7 @@ Checkout uses a database reservation and Stripe idempotency keys. Repeated attem
 | Capability | Free | Pro and active trial |
 | --- | --- | --- |
 | Applications | 5 | Unlimited |
-| Résumé versions | 1 | 3 |
+| Résumé vault entries | 1 | 3 |
 | AI requests | 3 per UTC calendar month | 30 per hour with a monthly processing budget |
 | File upload | 10 MB per file | 10 MB per file |
 
@@ -70,6 +87,8 @@ See [testing and verification](docs/TESTING.md), [dependency maintenance](docs/D
 
 - `app/dashboard/page.tsx` renders the authenticated workspace and loads analytics on demand.
 - `lib/store.tsx` hydrates Supabase data and dispatches writes through `lib/persistenceQueue.ts`. Failed writes remain queued until retry or an explicit reload of saved data. Pending changes are held in memory, with a warning before leaving.
+- `components/JobWorkspace.tsx` loads the selected job's saved materials on demand; `lib/jobWorkspace.ts` handles identity matching, input snapshots, and mapping. Workspace saves share the ordered queue and verify that the account has not changed.
+- Material and submission rows are append-only for app users. Atomic database functions save complete analysis bundles and submission references; ownership constraints reject references to another account or job.
 - `app/api/analyze/route.ts` validates bounded input, reserves usage atomically, calls Claude, records every completed model call, and validates the result.
 - `lib/server/postingFetch.ts` checks DNS answers and redirects, pins connections to validated public IPs, and bounds response size and duration.
 - DOCX previews sanitize converted HTML and use a sandbox policy.
