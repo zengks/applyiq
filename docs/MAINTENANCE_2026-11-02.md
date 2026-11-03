@@ -1,0 +1,39 @@
+# ApplyIQ maintenance — November 2, 2026
+
+## Fresh backup
+
+A private pre-upgrade backup was completed at **22:00 Vancouver time** (November 3, 05:00 UTC). It contains roles, application schema, managed Auth/Storage schema for recovery, table data, migration history, and both private résumé uploads. It is stored locally at `.local-backups/supabase/2026-11-02-pre-upgrade/`; the directory is excluded from Git and Vercel uploads. Files have restricted local permissions. The SQL contains private account/application data and must not be published.
+
+Verification restored the schema, data, and migrations into an isolated local Supabase Postgres `17.11.0.011` database with no network or host ports. All 17 captured application/account/storage/migration tables matched the live row counts and fingerprints. Both uploads (54,096 bytes total) passed SHA-256 checks. A private manifest records artifact sizes, checksums, and verification results. The verification container and its throwaway password were removed; the backup remains available.
+
+The initial restore attempt used the image's existing Auth schema and stopped on a schema-version conflict. Repeating the restore in an empty database succeeded. Recovery requires the captured managed schema or a compatible managed baseline, plus the dump's trigger-disable/replica settings for circular application/material references. Do not restore into the live project as a verification step.
+
+## Database upgrade
+
+The existing project is `fbqqjlrshphxhpripysl`. The pre-upgrade build was `17.6.1.166`; eligibility offered GA build `17.11.0.011` with an estimated maintenance window of up to one hour. Preflight found no replication slots, unsupported extensions, custom operators, affected application index types, legacy PGP function references, or stored Vault secrets. No experimental records were removed.
+
+The user authorized the backup and upgrade, and separately authorized official CLI sign-in. The signed-in CLI credential remains local and was used only with Supabase. The dashboard session subsequently required MFA; the documented Management API was used for maintenance. The upgrade completed successfully from 22:05 to 22:12 Vancouver time. Supabase reports `ACTIVE_HEALTHY` on build `17.11.0.011`, and SQL reports PostgreSQL 17.11. All 17 pre-upgrade table counts/fingerprints are unchanged, including billing records. No invalid indexes were found. Converting `2026-11-02 12:00:00+00` to `America/Vancouver` now returns 05:00 rather than the old 04:00. The upgrade status also confirms completion of its post-upgrade physical-backup stage. No data restore was performed on the hosted project.
+
+## Protected preview preparation
+
+Created `applyiq-preview` in the existing Vercel team `zengksoutlookcoms-projects`, project ID `prj_8ZHhJUYkcCT2HH5eKsdGmeLzZrUI`, linked to `zengks/applyiq`. All deployments require Vercel authentication. It uses the existing active Pro team, Node 26, and the Webpack build command; no hosting plan or spend setting was changed. Automatic `main` deployments are disabled in repository configuration so a preview setup does not publish a production release.
+
+Public Supabase settings and the existing Supabase service-role / Anthropic keys are configured for Preview only. The user explicitly authorized the two server-only Secret transfers after automatic review rejected the original request. The values were passed through stdin and were not displayed or committed. Fork deployment protection is enabled. Bulk environment download was also review-rejected; verification used variable names/types and reads of the two public variables instead. No real Stripe secret, signing secret, publishable key, or Price ID is configured on this preview. The placeholder Stripe string permits SDK module initialization and cannot authenticate to Stripe. Production credentials and Stripe account settings remain unchanged.
+
+## Billing hold
+
+The [Stripe coordination agreement](STRIPE_COORDINATION.md) remains in effect. This maintenance does not reconcile product offers, test payment flows, alter Stripe records, create accounts, or activate live payments. Any future authorized billing work must go through Stripe Manage first.
+
+## Repeating the backup
+
+The backup commands were run with Supabase CLI `3.0.0` after checking its current help. This release uses `--remote=<project-ref>`; older `--linked` examples should not be copied unchanged. With a new private, ignored destination and restrictive `umask`, capture:
+
+```sh
+npx --yes supabase@3.0.0 db dump --remote=fbqqjlrshphxhpripysl --role-only --file roles.sql
+npx --yes supabase@3.0.0 db dump --remote=fbqqjlrshphxhpripysl --file schema.sql
+npx --yes supabase@3.0.0 db dump --remote=fbqqjlrshphxhpripysl --data-only --use-copy --file data.sql
+npx --yes supabase@3.0.0 db dump --remote=fbqqjlrshphxhpripysl --schema public,auth,storage,supabase_migrations --file recovery-schema.sql
+npx --yes supabase@3.0.0 db dump --remote=fbqqjlrshphxhpripysl --data-only --use-copy --schema supabase_migrations --file migration-data.sql
+```
+
+Run these from the private backup directory, not the repository root. Storage uploads are a separate capture through the existing Storage API; the SQL contains only object metadata. Verify artifact hashes and a local restore before treating a new backup as recoverable. No offsite copy or recurring backup job was created by this task.

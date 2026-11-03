@@ -1,0 +1,4 @@
+.local-backups
+.env*
+!.env.local.example
+.git

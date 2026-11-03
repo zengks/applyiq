@@ -116,4 +116,4 @@ See [testing and verification](docs/TESTING.md), [dependency maintenance](docs/D
 
 ## Preview and validation
 
-No existing ApplyIQ hosting project was found in the connected Vercel account/team. The user confirmed it may not be connected yet. Local production verification is documented in [Preview and database maintenance](docs/PREVIEW_AND_DATABASE_MAINTENANCE.md); a hosted preview remains a separate setup step. The [job-seeker walkthrough](docs/JOB_SEEKER_WALKTHROUGH.md) is ready for voluntary testing and has not been sent to anyone.
+A protected `applyiq-preview` project is now linked to this repository in the existing Vercel team. The existing Supabase database has been upgraded to build `17.11.0.011` after a verified private backup. See [the maintenance record](docs/MAINTENANCE_2026-11-02.md) for deployment status and [the runbook](docs/PREVIEW_AND_DATABASE_MAINTENANCE.md) for recovery and preview procedures. The [job-seeker walkthrough](docs/JOB_SEEKER_WALKTHROUGH.md) is ready for voluntary testing and has not been sent to anyone.

@@ -1,6 +1,10 @@
 # Preview and database maintenance
 
-## Hosting status
+## Current maintenance status
+
+The user subsequently authorized the backup, database upgrade, and hosted preview. A verified private backup is retained locally and Supabase is now healthy on `17.11.0.011`. A protected Vercel project is linked. See [the November 2 execution record](MAINTENANCE_2026-11-02.md) for current evidence and deployment status. The older observations below are the pre-maintenance baseline.
+
+## Hosting baseline before this maintenance
 
 Checked November 2, 2026: no ApplyIQ project matched the connected Vercel personal account or team. The checkout has no `.vercel` link. The user indicated the app may not yet have a hosting provider. No hosting project was created, no domain configured, and no deployment published.
 
