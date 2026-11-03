@@ -97,9 +97,9 @@ Add data export, account/data deletion controls, and a clear explanation of whic
 
 Track AI cost per completed application, failed-fetch rate, save failure/recovery rate, and time to first saved job. Use those measurements to choose model/caching changes and pricing limits.
 
-The non-billing ownership policies for applications, résumés, and profile select/insert now cache `auth.uid()` once per statement. The applied migration preserves roles, ownership predicates, and write checks. Live two-account verification passed. RLS initialization-plan warnings fell from seven to three; the remaining subscription/usage policies are untouched under the billing hold. The security advisor reports no warnings or errors. Keep the six informational unused indexes until representative usage justifies removal.
+The non-billing ownership policies for applications, résumés, and profile select/insert now cache `auth.uid()` once per statement. The applied migration preserves roles, ownership predicates, and write checks. Live two-account verification passed. RLS initialization-plan warnings fell from seven to three; the remaining subscription/usage policies are untouched under the billing hold. The security advisor reports no warnings or errors. Keep informational unused indexes until representative usage justifies removal.
 
-The hosted Postgres build is now `17.11.0.011`. The [November 2 maintenance record](MAINTENANCE_2026-11-02.md) documents a fresh, privately stored backup that passed an isolated restore, unchanged pre/post-upgrade data fingerprints, and corrected Vancouver time conversion. The protected Vercel preview is being verified before wider use. Billing remains on hold.
+The hosted Postgres build is now `17.11.0.011`. The [November 2 maintenance record](MAINTENANCE_2026-11-02.md) documents a fresh, privately stored backup that passed an isolated restore, unchanged pre/post-upgrade data fingerprints, and corrected Vancouver time conversion. The protected Vercel preview passed the synthetic hosted workspace walkthrough, including a confirmation callback. Consenting-user observation and physical-phone testing remain next. Billing remains on hold.
 
 ## Validate before expanding
 

@@ -99,3 +99,7 @@ Live results: all five non-billing backend check groups passed; UI completion/re
 The synthetic payload comparison used three jobs with 60,000-character postings: full rows were 188,756 JSON bytes; metadata rows were 1,629 bytes (99.14% smaller). Three GET samples per query shape had medians 94 ms / 98 ms respectively. This establishes a smaller response body for that dataset, not improved LCP, phone latency, or production p75 performance. Full posting and notes text remained available on workspace open.
 
 The four-policy RLS migration is applied and its SQL checksum matches hosted history. Advisors now show zero security warnings/errors and three performance warnings in unchanged billing/usage policies, down from seven. Postgres upgrade readiness and hosting status are recorded in [the maintenance runbook](PREVIEW_AND_DATABASE_MAINTENANCE.md). Payment-flow verification remains on hold.
+
+## Hosted maintenance verification
+
+The [November 2 maintenance record](MAINTENANCE_2026-11-02.md) documents the verified private backup, completed upgrade to `17.11.0.011`, unchanged existing-data fingerprints, and completed provider physical backups. The five non-billing backend groups and the Today/workspace browser walkthrough also passed against the protected Vercel Preview. A one-time test-account confirmation callback established a hosted session without email delivery. No paid AI generation, real email-delivery, or payment-flow validation is claimed. Disposable accounts and local verification credentials are removed after the final smoke check.
