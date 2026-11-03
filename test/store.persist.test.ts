@@ -57,6 +57,19 @@ describe('persistAction', () => {
     expect(m.eq).toHaveBeenCalledWith('id', 'a1');
   });
 
+  it('quick action updates persist only the requested fields within the owner', async () => {
+    const m = makeSupabase();
+    await persistAction({ type: 'UPDATE_APP_ACTION', id: 'a1', done: true }, INITIAL, m.client, UID);
+    expect(m.update).toHaveBeenLastCalledWith({ next_action_done: true });
+    await persistAction({ type: 'UPDATE_APP_ACTION', id: 'a1', due: null }, INITIAL, m.client, UID);
+    expect(m.update).toHaveBeenLastCalledWith({ next_action_due: null });
+    expect(m.eq).toHaveBeenCalledWith('user_id', UID);
+    expect(m.eq).toHaveBeenCalledWith('id', 'a1');
+    m.result.error = { message: 'No owned row' };
+    await expect(persistAction({ type: 'UPDATE_APP_DEADLINE', id: 'a1', deadline: '2026-11-10' }, INITIAL, m.client, UID)).rejects.toEqual(m.result.error);
+    expect(m.update).toHaveBeenLastCalledWith({ deadline: '2026-11-10' });
+  });
+
   it('DELETE_APP deletes by id', async () => {
     const m = makeSupabase();
     await persistAction({ type: 'DELETE_APP', id: 'a1' }, INITIAL, m.client, UID);

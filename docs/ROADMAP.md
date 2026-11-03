@@ -41,13 +41,15 @@ Completion criteria:
 - Refreshing, retrying, or losing a connection does not create duplicate applications or hide an unsaved change.
 - A saved job remains useful after its source expires.
 
-## Milestone 2 Show what needs attention today — next
+## Milestone 2 Show what needs attention today — initial slice implemented
 
-Add a Today view with interviews, deadlines, user-set follow-up dates, and incomplete tasks. Attach recruiter/referral contacts and notes to jobs. Offer calendar export and editable follow-up drafts. Keep external sending under the user's control.
+Delivered: Today is the default dashboard view, grouping existing next actions and unsubmitted saved-job deadlines into overdue/today/upcoming/undated/completed sections. Actions can be completed/reopened and dates rescheduled or cleared. Each item opens its job workspace. Date-only values are compared against the browser’s local day and remain stable across time zones. Completed actions are collapsed. Explicit next actions on settled jobs remain visible.
+
+Remaining: interview appointments with explicit time zones, recruiter/referral contacts, calendar export, and editable follow-up drafts. Keep external sending under the user’s control. Existing job notes now save explicitly with job details. No interview time or appointment is inferred from a status label.
 
 Completion criteria:
 
-- Every reminder has a date, time zone, destination, and completion/dismiss control.
+- Date-only tasks expose their date, completion state, and job destination; appointment reminders will need a time zone and time as well.
 - Users can understand why an item appears today and change its schedule.
 - Follow-up drafts use the correct job/contact and remain editable before sending.
 
@@ -86,19 +88,23 @@ Add data export, account/data deletion controls, and a clear explanation of whic
 
 | Priority | Change | Measure of completion |
 | --- | --- | --- |
-| First | Debounce/coalesce note saves while preserving final write order. | Typing saves the final text with fewer requests; failure/retry tests pass. |
+| Delivered | Keep notes local until Save job details. | Typing performs no database writes; explicit save joins the existing ordered retry queue. |
 | First | Cache analysis per account using job-content hash, résumé version, model, and prompt version. | Unchanged work avoids another paid call; changed inputs invalidate the cache. |
-| Next | Load résumé metadata separately from full text and paginate large boards. | Initial dashboard requests stay bounded as accounts grow. |
+| Partly delivered | Job metadata loads without large posting/notes bodies; workspace code loads on demand. Résumé metadata separation and board pagination remain next. | Three large synthetic jobs: JSON response reduced from 188,756 to 1,629 bytes (99.14%). Three GET samples per shape showed 94 ms full / 98 ms metadata medians; no latency gain established. |
 | Next | Separate high-frequency editor state from navigation/account state. | Typing does not rerender unrelated screens. |
-| Next | Add opt-in draft recovery across reloads with account separation and device-storage controls. | Recovered drafts never appear to a different account. |
+| Delivered | Opt-in device recovery for workspace form edits, seven days and ten jobs per account. | Explicit restore, validated/account-scoped storage, quota errors, opt-out/sign-out cleanup, and lifecycle regression tests. |
 | Before wider release | Measure representative desktop and phone flows. | Target p75 LCP below 2.5 seconds and interaction latency below 200 ms; record measurements before claiming success. |
 
 Track AI cost per completed application, failed-fetch rate, save failure/recovery rate, and time to first saved job. Use those measurements to choose model/caching changes and pricing limits.
 
-The hosted performance advisor still reports seven [RLS initialization-plan warnings](https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan) in older account/application policies. The new workspace policies already use cached `auth.uid()` subqueries and ownership indexes. Optimize the older policies in a separate measured migration. Keep new reference indexes until representative usage justifies removing them; an unused-index notice alone is insufficient evidence. Also review the hosted Postgres minor version against the [Supabase changelog](https://supabase.com/changelog/tzdata-local-time-vancouver-edmonton-casablanca) before a wider release.
+The non-billing ownership policies for applications, résumés, and profile select/insert now cache `auth.uid()` once per statement. The applied migration preserves roles, ownership predicates, and write checks. Live two-account verification passed. RLS initialization-plan warnings fell from seven to three; the remaining subscription/usage policies are untouched under the billing hold. The security advisor reports no warnings or errors. Keep the six informational unused indexes until representative usage justifies removal.
+
+The hosted Postgres build remains 17.6.1.166. The dashboard offers 17.11.0.011; a visible physical backup from November 2 at 21:39:05 UTC predates current changes. [The maintenance runbook](PREVIEW_AND_DATABASE_MAINTENANCE.md) records the fresh-backup and downtime-window gates. The [Supabase time-zone advisory](https://supabase.com/changelog/tzdata-local-time-vancouver-edmonton-casablanca) affects local-time conversions on this older build; stored timestamps are unaffected. No upgrade or restore was executed.
 
 ## Validate before expanding
 
 Observe a small set of consenting job seekers using Milestone 1. Look for repeated typing, lost documents, forgotten next steps, and suggestions they distrust. First measure whether they can create a useful saved application workspace without assistance. Then check whether they return and use the materials in a real application.
 
 Choose the next milestone from those observations. A match score, generated document, or saved job does not establish an interview or offer.
+
+A [consenting job-seeker walkthrough](JOB_SEEKER_WALKTHROUGH.md) is prepared. Browser checks used synthetic accounts; no outreach or real-user validation has occurred.

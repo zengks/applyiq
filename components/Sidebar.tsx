@@ -5,6 +5,7 @@ import { useStore } from '@/lib/store';
 import { ActiveView } from '@/lib/types';
 import { VERSION_LABEL } from '@/lib/version';
 import WhatsNewModal from '@/components/modals/WhatsNewModal';
+import { blockDraftWrites, clearAccountDrafts } from '@/lib/workspaceDraft';
 
 const SparkleIcon = () => (
   <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -105,7 +106,7 @@ function NavItem({ icon, label, view, badge, activeView, darkMode, onSelect }: N
 }
 
 export default function Sidebar({ open = false, onNavigate }: { open?: boolean; onNavigate?: () => void }) {
-  const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, staleCount, showTrialBanner, showExpiredBanner, dispatch } = useStore();
+  const { activeView, darkMode, profileName, profileTitle, isPro, trialDaysLeft, trialDaysTotal, urgentCount, staleCount, showTrialBanner, showExpiredBanner, dispatch, accountId } = useStore();
 
   const selectView = (view: ActiveView) => { dispatch({ type: 'SET_VIEW', view }); onNavigate?.(); };
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -141,6 +142,7 @@ export default function Sidebar({ open = false, onNavigate }: { open?: boolean; 
 
       {/* Nav */}
       <nav style={{ flex: 1, padding: '14px 10px', overflowY: 'auto' }}>
+        <NavItem {...navProps} icon={<DashIcon />} label="Today" view="today" />
         <NavItem {...navProps} icon={<DashIcon />} label="Dashboard" view="dashboard" />
         <NavItem {...navProps} icon={<BriefcaseIcon />} label="Applications" view="applications"
           badge={(urgentCount > 0 || staleCount > 0) ? (
@@ -164,7 +166,14 @@ export default function Sidebar({ open = false, onNavigate }: { open?: boolean; 
 
         <NavItem {...navProps} icon={<UserIcon />} label="Profile" view="profile" />
 
-        <form action="/auth/signout" method="post" style={{ margin: 0 }}>
+        <form action="/auth/signout" method="post" style={{ margin: 0 }} onSubmit={event => {
+          if (!accountId) return;
+          try { clearAccountDrafts(localStorage, accountId); blockDraftWrites(accountId); }
+          catch {
+            if (!window.confirm('This browser blocked clearing recovery drafts. Sign out anyway? Clear this site’s browser data before sharing the device.')) { event.preventDefault(); return; }
+            blockDraftWrites(accountId);
+          }
+        }}>
           <button
             type="submit"
             style={{

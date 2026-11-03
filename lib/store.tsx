@@ -9,7 +9,7 @@ import {
 } from './types';
 import { needsCheck, MAX_URLS_PER_CHECK } from './postingCheck';
 import { PersistenceQueue, type SyncStatus } from './persistenceQueue';
-import { mapApplicationRow } from './jobWorkspace';
+import { APPLICATION_LIST_FIELDS, mapApplicationRow } from './jobWorkspace';
 
 export interface State {
   loading: boolean;
@@ -70,6 +70,8 @@ export type Action =
   | { type: 'SYNC_APP'; app: Application }
   | { type: 'UPDATE_APP_STATUS'; id: string; status: AppStatus }
   | { type: 'UPDATE_APP_NOTES'; id: string; notes: string }
+  | { type: 'UPDATE_APP_ACTION'; id: string; done?: boolean; due?: string | null }
+  | { type: 'UPDATE_APP_DEADLINE'; id: string; deadline: string | null }
   | { type: 'DELETE_APP'; id: string }
   | { type: 'OPEN_DETAIL'; id: string }
   | { type: 'CLOSE_DETAIL' }
@@ -99,7 +101,7 @@ function emptyNewJob(): NewJobForm {
 export const INITIAL: State = {
   loading: true,
   darkMode: false,
-  activeView: 'dashboard',
+  activeView: 'today',
   email: '',
   profileName: '',
   profileTitle: '',
@@ -157,6 +159,8 @@ export function reducer(state: State, action: Action): State {
       ? state.applications.map(app => app.id === action.app.id ? action.app : app) : [action.app, ...state.applications] };
     case 'UPDATE_APP_STATUS': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, status: action.status } : a) };
     case 'UPDATE_APP_NOTES': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, notes: action.notes } : a) };
+    case 'UPDATE_APP_ACTION': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, ...(action.done !== undefined ? { nextActionDone: action.done } : {}), ...(action.due !== undefined ? { nextActionDue: action.due } : {}) } : a) };
+    case 'UPDATE_APP_DEADLINE': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, deadline: action.deadline } : a) };
     case 'DELETE_APP': return { ...state, applications: state.applications.filter(a => a.id !== action.id), showDetailDrawer: false, selectedAppId: null };
     case 'OPEN_DETAIL': return { ...state, showDetailDrawer: true, selectedAppId: action.id };
     case 'CLOSE_DETAIL': return { ...state, showDetailDrawer: false, selectedAppId: null };
@@ -222,7 +226,7 @@ function resumeRow(r: Resume, userId: string) {
 }
 
 const PERSISTED_ACTIONS = new Set([
-  'ADD_APP', 'UPDATE_APP_STATUS', 'UPDATE_APP_NOTES', 'DELETE_APP',
+  'ADD_APP', 'UPDATE_APP_STATUS', 'UPDATE_APP_NOTES', 'UPDATE_APP_ACTION', 'UPDATE_APP_DEADLINE', 'DELETE_APP',
   'POSTING_CHECK_DONE', 'ADD_RESUME', 'SET_DEFAULT_RESUME', 'SET_PROFILE', 'SET_DARK',
   'SET_BILLING', 'CLOSE_ONBOARDING',
 ]);
@@ -244,6 +248,12 @@ export async function persistAction(action: Action, state: State, supabase: Supa
         break;
       case 'UPDATE_APP_NOTES':
         checked(await supabase.from('applications').update({ notes: action.notes }).eq('user_id', userId).eq('id', action.id).select('id').single());
+        break;
+      case 'UPDATE_APP_ACTION':
+        checked(await supabase.from('applications').update({ ...(action.done !== undefined ? { next_action_done: action.done } : {}), ...(action.due !== undefined ? { next_action_due: action.due } : {}) }).eq('user_id', userId).eq('id', action.id).select('id').single());
+        break;
+      case 'UPDATE_APP_DEADLINE':
+        checked(await supabase.from('applications').update({ deadline: action.deadline }).eq('user_id', userId).eq('id', action.id).select('id').single());
         break;
       case 'DELETE_APP':
         checked(await supabase.from('applications').delete().eq('user_id', userId).eq('id', action.id));
@@ -348,6 +358,7 @@ export function postingsDueForCheck(apps: Application[], now: number = Date.now(
 }
 
 interface Ctx extends State, DerivedValues {
+  accountId: string | null;
   showPricingModal: boolean;
   dispatch: (action: Action) => Promise<boolean>;
   syncStatus: SyncStatus;
@@ -380,6 +391,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // showPricingModal is tracked separately to avoid widening the persisted State type.
   const [showPricingModal, setShowPricingModal] = useState(false);
   const [loadError, setLoadError] = useState('');
+  const [accountId, setAccountId] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ pending: 0, saving: false, error: '' });
   const [saveQueue] = useState(() => new PersistenceQueue(setSyncStatus));
 
@@ -392,12 +404,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (saveQueue.pending) return;
     try {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { userIdRef.current = null; rawDispatch({ type: 'HYDRATE', payload: emptyHydrate() }); return; }
+    if (!user) { userIdRef.current = null; setAccountId(null); rawDispatch({ type: 'HYDRATE', payload: emptyHydrate() }); return; }
     userIdRef.current = user.id;
+    setAccountId(user.id);
 
     const [profileRes, appsRes, resumesRes, subRes] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
-      supabase.from('applications').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('applications').select(APPLICATION_LIST_FIELDS).eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('resumes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('subscriptions').select('*').eq('user_id', user.id).maybeSingle(),
     ]);
@@ -521,7 +534,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const derived = deriveStoreValues(state, Date.now());
 
   return (
-    <StoreCtx.Provider value={{ ...state, showPricingModal, dispatch, checkPostings, syncStatus, loadError, workspaceClient: supabase, saveWorkspace, retryLoad: hydrate, retrySave: () => saveQueue.retry(), discardUnsaved: async () => { saveQueue.discard(); window.location.reload(); }, ...derived }}>
+    <StoreCtx.Provider value={{ ...state, accountId, showPricingModal, dispatch, checkPostings, syncStatus, loadError, workspaceClient: supabase, saveWorkspace, retryLoad: hydrate, retrySave: () => saveQueue.retry(), discardUnsaved: async () => { saveQueue.discard(); window.location.reload(); }, ...derived }}>
       {children}
     </StoreCtx.Provider>
   );

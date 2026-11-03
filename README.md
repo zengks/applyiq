@@ -13,9 +13,21 @@ Open any application card to work with everything for that job:
 5. Record the submission date and exact résumé/letter versions actually sent. Reopening that record selects those versions, even after later edits.
 6. Save a next action, due date, and completion state. The board shows the next action. Status changes have a timeline from this release onward.
 
-Similar URLs and company/title pairs prompt confirmation before creating another job. Queued saves reuse fixed record IDs, show failures, and retain the operation for retry. Unsaved form edits warn before closing. Keep the page open until queued writes finish; drafts and queued operations are currently held in memory.
+Similar URLs and company/title pairs prompt confirmation before creating another job. Queued saves reuse fixed record IDs, show failures, and retain the operation for retry. Unsaved form edits warn before closing. Keep the page open until queued writes finish; queued operations and in-flight AI results are held in memory. Optional device recovery protects workspace form edits across reloads (see below). Notes are edited locally and written with **Save job details**, rather than on every keystroke.
 
 Vault slots remain plan-limited. Each job can keep up to 200 material versions across résumés, analyses, and letters. The workspace shows the latest 100 submission records and 200 status events. Résumé text snapshots remain independent of the vault; the optional original-file link uses the existing private file and can become unavailable if that source file is removed. Recording a submission does not send an application, and next actions do not send notifications.
+
+## Today and device draft recovery
+
+The dashboard opens on **Today**: overdue, today, upcoming, undated, and completed next actions, plus deadlines for saved applications that have not been submitted. Complete/reopen actions, reschedule dates, and open the corresponding workspace directly. An offer or rejection does not hide an explicit next action; recording a submission removes its application deadline. Interview appointments, calendar export, and external notifications are future work.
+
+Dates are calendar dates in the browser's local day; the view displays its time zone and refreshes after midnight or returning to the tab. It never converts date-only deadlines through midnight UTC.
+
+In a job workspace, **Keep recovery drafts on this device** is opt-in. It stores unsaved posting/notes/action/date fields, pasted résumé edits, and letter edits in this browser, separated by verified account and job. Up to ten workspaces are retained for seven days; expired copies are removed when accessed. Restore is explicit and never automatically writes to Supabase, retries a queued operation, or calls AI. Review restored edits and use the normal Save buttons. Newer saved fields are preserved unless you edited that field locally; overlapping changes produce a review notice.
+
+Device storage is not encrypted against someone with access to the browser profile. Skip it on shared devices. Turning recovery off or explicitly signing out clears this account's local drafts and preference. Browser storage restrictions/quota errors are shown; keep the page open until database saves finish. Recovery is not a backup of completed database records, uploads, queued operations, or unfinished AI responses.
+
+Dashboard job lists initially load metadata; large posting and notes bodies load when the workspace opens. Workspace editing remains disabled until the full saved record loads.
 
 ## Run locally
 
@@ -101,3 +113,7 @@ See [testing and verification](docs/TESTING.md), [dependency maintenance](docs/D
 - Subscription rows are writable only by the server. Webhook write failures return an error so Stripe retries.
 
 `npm run seed:premium` is an explicit test utility. It requires a unique `SEED_TEST_PASSWORD`, Stripe test mode, and opt-in for a remote test database. Never use a shared seeded account in production.
+
+## Preview and validation
+
+No existing ApplyIQ hosting project was found in the connected Vercel account/team. The user confirmed it may not be connected yet. Local production verification is documented in [Preview and database maintenance](docs/PREVIEW_AND_DATABASE_MAINTENANCE.md); a hosted preview remains a separate setup step. The [job-seeker walkthrough](docs/JOB_SEEKER_WALKTHROUGH.md) is ready for voluntary testing and has not been sent to anyone.

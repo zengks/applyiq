@@ -91,6 +91,20 @@ describe('reducer', () => {
     expect(start.applications.find(a => a.id === 'a2')!.status).toBe('saved'); // immutability
   });
 
+  it('quick action and deadline edits preserve the posting, notes, and other jobs', () => {
+    const original = app({ id: 'a1', description: 'Preserved', notes: 'Keep notes', nextAction: 'Follow up', nextActionDue: '2026-11-05', nextActionDone: false });
+    const other = app({ id: 'a2' });
+    const start = { ...INITIAL, applications: [original, other] };
+    const completed = reducer(start, { type: 'UPDATE_APP_ACTION', id: 'a1', done: true });
+    expect(completed.applications[0]).toEqual({ ...original, nextActionDone: true });
+    const rescheduled = reducer(completed, { type: 'UPDATE_APP_ACTION', id: 'a1', due: null });
+    expect(rescheduled.applications[0]).toEqual({ ...original, nextActionDone: true, nextActionDue: null });
+    const deadline = reducer(rescheduled, { type: 'UPDATE_APP_DEADLINE', id: 'a1', deadline: '2026-11-10' });
+    expect(deadline.applications[0]).toEqual({ ...original, nextActionDone: true, nextActionDue: null, deadline: '2026-11-10' });
+    expect(deadline.applications[1]).toBe(other);
+    expect(original.nextActionDone).toBe(false);
+  });
+
   it('DELETE_APP removes and closes drawer', () => {
     const start: State = { ...INITIAL, applications: [app({ id: 'a1' })], showDetailDrawer: true, selectedAppId: 'a1' };
     const next = reducer(start, { type: 'DELETE_APP', id: 'a1' });

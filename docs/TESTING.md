@@ -76,3 +76,26 @@ The Stripe items below are future checks, not instructions to resume billing. Af
 - Review previously seeded remote test accounts for reused credentials. The seed utility no longer supplies or logs a shared password; existing credentials were not changed in this work.
 - Test mobile navigation, dialogs, keyboard scrolling, uploads, retry notices, and slow/offline saves on a phone.
 - Measure dashboard load, interaction latency, bundle requests, and AI cost with representative data before claiming performance improvements.
+
+## Today and draft recovery verification
+
+The initial Today slice and opt-in device recovery were verified on November 2, 2026 (Vancouver local date). All 207 tests, TypeScript, ESLint, the Webpack production build, and the production dependency audit passed. Unit tests cover grouping and valid calendar dates, local midnight/focus refresh, action completion/reopening, native date rescheduling, visible failed saves, owner-filtered persistence, metadata-only form guards, explicit note saves, draft expiry/corruption/quota, three-way restore, existing-letter reuse, and sign-out/opt-out cleanup without recreating private drafts.
+
+Run the isolated non-billing helper with the intended `.env.local`:
+
+```sh
+RUN_BACKEND_VERIFICATION=yes node --env-file=.env.local scripts/verify-today.mjs create
+# Complete the browser walkthrough below.
+RUN_BACKEND_VERIFICATION=yes node --env-file=.env.local scripts/verify-today.mjs verify-browser
+RUN_BACKEND_VERIFICATION=yes node --env-file=.env.local scripts/verify-today.mjs cleanup
+```
+
+`create` makes two uniquely named disposable accounts, three synthetic jobs, one résumé, and synthetic analysis/letter/submission snapshots. It checks profile/application/résumé isolation, denied ownership reassignment, quick action persistence, and cross-account denial of materials. It never calls Stripe or creates/changes subscriptions or billing records. Credentials stay in a restricted OS temporary file; the measurement report contains no credentials. Cleanup verifies the generated email before deleting only those disposable accounts. Never use a general experimental-record purge.
+
+In the browser, sign in as the first fixture account. Complete Cedar's **Prepare interview examples** action. Reschedule Harbor's **Review the role requirements** to the fixture's `rescheduledDate`. Open Northstar, opt into recovery, replace notes with **Notes recovered after reload.**, and write a new letter **Recovered draft letter for review.** Close while keeping the draft, reload the dashboard, reopen Northstar, and choose **Restore draft**. Confirm edits are offered for review and have not automatically saved. Save job details and save the letter as a new version. Reopen the original submitted materials; the first résumé and letter must remain unchanged. `verify-browser` checks these results in Supabase. Sign out, then reopen after signing in to confirm device recovery is off and no stored candidate appears. Clear test text from the device and run scoped cleanup.
+
+Live results: all five non-billing backend check groups passed; UI completion/rescheduling, notes/letter recovery after reload, and unchanged original submission references were verified in Supabase. A 390×844 browser viewport covered Today, navigation, and workspace controls. This is not a physical-phone or real-user test. Returned-error/queue retry behavior is covered by component and persistence tests; no claim of an offline durable operation queue is made.
+
+The synthetic payload comparison used three jobs with 60,000-character postings: full rows were 188,756 JSON bytes; metadata rows were 1,629 bytes (99.14% smaller). Three GET samples per query shape had medians 94 ms / 98 ms respectively. This establishes a smaller response body for that dataset, not improved LCP, phone latency, or production p75 performance. Full posting and notes text remained available on workspace open.
+
+The four-policy RLS migration is applied and its SQL checksum matches hosted history. Advisors now show zero security warnings/errors and three performance warnings in unchanged billing/usage policies, down from seven. Postgres upgrade readiness and hosting status are recorded in [the maintenance runbook](PREVIEW_AND_DATABASE_MAINTENANCE.md). Payment-flow verification remains on hold.

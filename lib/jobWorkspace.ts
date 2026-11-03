@@ -3,6 +3,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { analysisSchema, normalizeJobUrl } from './ai';
 import { z } from 'zod';
 
+// Large posting and notes bodies are loaded only when their workspace opens.
+export const APPLICATION_LIST_FIELDS = 'id,user_id,company,role,status,match,deadline,url,created_at,posting_status,posting_checked_at,posting_note,captured_at,applied_at,next_action,next_action_due,next_action_done,selected_resume_id';
+
 const materialSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('resume'),
@@ -67,6 +70,7 @@ export function duplicateJobs(apps: Application[], candidate: Pick<Application, 
 export function mapApplicationRow(a: Record<string, unknown>): Application {
   return {
     id: a.id as string,
+    ownerId: a.user_id as string | undefined,
     createdAt: a.created_at as string,
     company: a.company as string,
     role: a.role as string,
@@ -74,7 +78,7 @@ export function mapApplicationRow(a: Record<string, unknown>): Application {
     match: a.match as number,
     deadline: a.deadline as string | null,
     url: a.url as string,
-    notes: a.notes as string,
+    notes: (a.notes ?? '') as string,
     postingStatus: (a.posting_status ?? 'unknown') as Application['postingStatus'],
     postingCheckedAt: a.posting_checked_at as string | null,
     postingNote: (a.posting_note ?? '') as string,
@@ -183,4 +187,9 @@ export function mergeSavedFields<T extends object>(draft: T, baseline: T, incomi
     if (draft[key] === baseline[key]) merged[key] = incoming[key];
   }
   return merged;
+}
+
+export function sameFields<T extends object>(a: T, b: T): boolean {
+  const keys = Object.keys(a) as Array<keyof T>;
+  return keys.length === Object.keys(b).length && keys.every(key => a[key] === b[key]);
 }

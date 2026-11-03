@@ -15,6 +15,7 @@ import AIAnalysis from '@/components/views/AIAnalysis';
 import ResumeVault from '@/components/views/ResumeVault';
 const Analytics = dynamic(() => import('@/components/views/Analytics'), { loading: () => <p style={{ padding: 24 }}>Loading analytics…</p> });
 import Profile from '@/components/views/Profile';
+import Today from '@/components/views/Today';
 
 function AppShell() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -31,6 +32,7 @@ function AppShell() {
   }
 
   const views: Record<string, React.ReactNode> = {
+    today:        <Today />,
     dashboard:    <Dashboard />,
     applications: <Applications />,
     ai:           <AIAnalysis />,

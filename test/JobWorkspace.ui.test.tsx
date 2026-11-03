@@ -10,6 +10,7 @@ vi.mock('@/lib/jobWorkspace', async (original) => ({
   loadJobWorkspace: mocks.load,
 }));
 import JobWorkspace from '@/components/JobWorkspace';
+import { setDraftsEnabled, writeWorkspaceDraft, type WorkspaceDraft } from '@/lib/workspaceDraft';
 afterEach(() => vi.unstubAllGlobals());
 
 const application: Application = {
@@ -34,6 +35,7 @@ let update: ReturnType<typeof vi.fn>;
 let saveWorkspace: ReturnType<typeof vi.fn>;
 
 beforeEach(() => {
+  localStorage.clear();
   data = {
     materials: [
       {
@@ -78,7 +80,10 @@ beforeEach(() => {
     ],
     events: [{ id: 'event', status: 'applied', createdAt: date }],
   };
-  mocks.load.mockReset().mockImplementation(async () => ({ ...structuredClone(data), application }));
+  mocks.load.mockReset().mockImplementation(async () => ({
+    ...structuredClone(data),
+    application,
+  }));
   rpc = vi.fn().mockImplementation(async (name, params) => {
     if (name === 'save_application_material')
       data.materials.unshift({
@@ -91,9 +96,9 @@ beforeEach(() => {
       } as JobMaterial);
     return { error: null };
   });
-  update = vi
-    .fn()
-    .mockReturnValue({ eq: () => ({ select: () => ({ single: async () => ({ error: null }) }) }) });
+  update = vi.fn().mockReturnValue({
+    eq: () => ({ select: () => ({ single: async () => ({ error: null }) }) }),
+  });
   const client = { rpc, from: () => ({ update }) } as unknown as SupabaseClient;
   saveWorkspace = vi.fn(async (run: (client: SupabaseClient) => Promise<void>) => {
     try {
@@ -123,7 +128,10 @@ async function openMaterials() {
 
 describe('complete application workspace', () => {
   it('warns before navigating away during an in-flight analysis', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {})),
+    );
     render(<JobWorkspace application={application} />);
     await openMaterials();
     fireEvent.click(screen.getByRole('button', { name: 'Analyze selected résumé' }));
@@ -136,12 +144,18 @@ describe('complete application workspace', () => {
     render(<JobWorkspace application={application} />);
     fireEvent.click(screen.getByRole('button', { name: 'Submissions & timeline' }));
     const input = (await screen.findByLabelText('Date submitted')) as HTMLInputElement;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '2026-10-31');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+      input,
+      '2026-10-31',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Record submission' }));
     await screen.findByText('Submission recorded with the exact selected materials.');
     expect(rpc).toHaveBeenCalledWith(
       'record_application_submission',
-      expect.objectContaining({ resume_version: 'resume-v1', submission_date: '2026-10-31' }),
+      expect.objectContaining({
+        resume_version: 'resume-v1',
+        submission_date: '2026-10-31',
+      }),
     );
   });
   it('analyzes the saved posting with the chosen résumé and queues the linked bundle', async () => {
@@ -188,15 +202,22 @@ describe('complete application workspace', () => {
     expect(screen.getByLabelText('Saved résumé for this job')).toHaveValue('resume-v1');
     expect(screen.getByLabelText('Open a saved letter')).toHaveValue('letter-v1');
     expect(screen.getByLabelText('Cover letter')).toHaveValue('Exact submitted letter');
-    fireEvent.change(screen.getByLabelText('Cover letter'), { target: { value: 'Edited future letter' } });
+    fireEvent.change(screen.getByLabelText('Cover letter'), {
+      target: { value: 'Edited future letter' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save as new version' }));
-    await screen.findByText('Cover letter saved as a new version. Earlier versions remain unchanged.');
+    await screen.findByText(
+      'Cover letter saved as a new version. Earlier versions remain unchanged.',
+    );
     expect(rpc).toHaveBeenCalledWith(
       'save_application_material',
       expect.objectContaining({
         job_id: 'job',
         material_kind: 'cover_letter',
-        material_body: { text: 'Edited future letter', analysisVersionId: null },
+        material_body: {
+          text: 'Edited future letter',
+          analysisVersionId: null,
+        },
       }),
     );
     expect(data.materials.find((item) => item.id === 'letter-v1')?.body).toMatchObject({
@@ -209,9 +230,16 @@ describe('complete application workspace', () => {
 
   it('preserves a removed posting and saves the next action with its due date', async () => {
     render(<JobWorkspace application={application} />);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save job details' })).toBeEnabled(),
+    );
     expect(screen.getByLabelText('Posting description')).toHaveValue('Preserved job description');
-    fireEvent.change(screen.getByLabelText('What will you do next?'), { target: { value: 'Follow up' } });
-    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-11-09' } });
+    fireEvent.change(screen.getByLabelText('What will you do next?'), {
+      target: { value: 'Follow up' },
+    });
+    fireEvent.change(screen.getByLabelText('Due date'), {
+      target: { value: '2026-11-09' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save job details' }));
     await screen.findByText('Job details and next action saved.');
     expect(update).toHaveBeenCalledWith(
@@ -228,7 +256,9 @@ describe('complete application workspace', () => {
     rpc.mockResolvedValue({ error: { message: 'offline' } });
     render(<JobWorkspace application={application} />);
     await openMaterials();
-    fireEvent.change(screen.getByLabelText('Cover letter'), { target: { value: 'Unsaved letter' } });
+    fireEvent.change(screen.getByLabelText('Cover letter'), {
+      target: { value: 'Unsaved letter' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Save as new version' }));
     await screen.findByText('This change is queued. Keep the page open and use Retry save above.');
     expect(
@@ -239,18 +269,115 @@ describe('complete application workspace', () => {
 
   it('saves an autofilled native date even when it did not emit a React change event', async () => {
     render(<JobWorkspace application={application} />);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save job details' })).toBeEnabled(),
+    );
     const input = screen.getByLabelText('Due date') as HTMLInputElement;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, '2026-11-10');
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+      input,
+      '2026-11-10',
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Save job details' }));
     await screen.findByText('Job details and next action saved.');
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ next_action_due: '2026-11-10' }));
+  });
+
+  it('keeps notes local until explicitly saving job details', async () => {
+    render(<JobWorkspace application={application} />);
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save job details' })).toBeEnabled(),
+    );
+    fireEvent.change(screen.getByLabelText('Application notes'), {
+      target: { value: 'Notes after review' },
+    });
+    expect(update).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole('button', { name: 'Save job details' }));
+    await screen.findByText('Job details and next action saved.');
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        notes: 'Notes after review',
+        description: 'Preserved job description',
+      }),
+    );
+  });
+
+  it('disables metadata-only forms until the full saved workspace has loaded', async () => {
+    let resolveLoad!: (value: JobWorkspaceData & { application: Application }) => void;
+    mocks.load.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveLoad = resolve;
+        }),
+    );
+    render(<JobWorkspace application={{ ...application, description: '', notes: '' }} />);
+    expect(screen.getByRole('button', { name: 'Save job details' })).toBeDisabled();
+    expect(screen.getByLabelText('Posting description')).toBeDisabled();
+    resolveLoad({
+      ...data,
+      application: { ...application, notes: 'Saved long notes' },
+    });
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Save job details' })).toBeEnabled(),
+    );
+    expect(screen.getByLabelText('Posting description')).toHaveValue('Preserved job description');
+    expect(screen.getByLabelText('Application notes')).toHaveValue('Saved long notes');
+  });
+
+  it('restores local edits for review while preserving newer saved fields and an already-saved letter', async () => {
+    const ownerId = '11111111-1111-4111-8111-111111111111';
+    const id = '33333333-3333-4333-8333-333333333333';
+    const owned = {
+      ...application,
+      id,
+      ownerId,
+      nextAction: 'Newer saved next step',
+    };
+    const baseline = {
+      description: application.description!,
+      nextAction: 'Earlier step',
+      nextActionDue: '',
+      nextActionDone: false,
+      appliedAt: '',
+      notes: '',
+    };
+    const draft: WorkspaceDraft = {
+      baseline,
+      details: { ...baseline, notes: 'Recovered note' },
+      resumeName: '',
+      resumeText: '',
+      letterId: '',
+      letterTitle: 'Newer draft',
+      letterText: 'Newer unsubmitted letter',
+      letterSource: null,
+      savedLetterText: '',
+      savedLetterTitle: 'Cover letter',
+    };
+    setDraftsEnabled(localStorage, ownerId, true);
+    writeWorkspaceDraft(localStorage, ownerId, id, draft);
+    mocks.load.mockImplementation(async () => ({
+      ...structuredClone(data),
+      application: owned,
+    }));
+    mocks.useStore.mockReturnValue({ ...mocks.useStore(), accountId: ownerId });
+    render(<JobWorkspace application={owned} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Restore draft' }));
+    expect(screen.getByLabelText('Application notes')).toHaveValue('Recovered note');
+    expect(screen.getByLabelText('What will you do next?')).toHaveValue('Newer saved next step');
+    expect(update).not.toHaveBeenCalled();
+    expect(rpc).not.toHaveBeenCalled();
+    await openMaterials();
+    expect(screen.getByLabelText('Open a saved letter')).toHaveValue('letter-v2');
+    expect(screen.getByLabelText('Cover letter')).toHaveValue('Newer unsubmitted letter');
+    expect(screen.queryByText('You have unsaved edits.')).toBeInTheDocument();
   });
 
   it('shows no letter for a submission that did not include one', async () => {
     data.submissions[0].coverLetterVersionId = null;
     render(<JobWorkspace application={application} />);
     await openMaterials();
-    fireEvent.change(screen.getByLabelText('Open a saved letter'), { target: { value: 'letter-v2' } });
+    fireEvent.change(screen.getByLabelText('Open a saved letter'), {
+      target: { value: 'letter-v2' },
+    });
     fireEvent.click(screen.getByRole('button', { name: 'Submissions & timeline' }));
     fireEvent.click(await screen.findByRole('button', { name: 'View submitted materials' }));
     expect(screen.getByLabelText('Open a saved letter')).toHaveValue('');

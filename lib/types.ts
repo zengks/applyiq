@@ -11,6 +11,7 @@ export type PostingStatus = 'active' | 'expired' | 'removed' | 'unknown';
 
 export interface Application {
   id: string;
+  ownerId?: string;
   createdAt?: string;
   company: string;
   role: string;
@@ -92,7 +93,7 @@ export interface Subscription {
   priceId: string | null;
 }
 
-export type ActiveView = 'dashboard' | 'applications' | 'ai' | 'resume' | 'stats' | 'profile';
+export type ActiveView = 'today' | 'dashboard' | 'applications' | 'ai' | 'resume' | 'stats' | 'profile';
 export type ActiveTab = 'keywords' | 'cover' | 'interview' | 'insights';
 export type BillingCycle = 'monthly' | 'annual';
 
