@@ -76,6 +76,8 @@ Tailwind CSS v4 (CSS-first config — no `tailwind.config.ts`). Design tokens in
 
 Read `README.md`, `docs/TESTING.md`, and `docs/DEPENDENCIES.md` before maintenance. Read the installed Next.js docs before changing framework code.
 
+**Stripe work is on hold: leave billing as-is until the user explicitly resumes it.** Read `docs/STRIPE_COORDINATION.md`. The user authorizes direct two-way messaging with **Plan Stripe account management** (`01a161e2-d2b2-7f01-b0a7-0d79cf8fd264`); that coordination is not authorization to resume billing. Before billing changes, ask Stripe Manage to reconcile the existing CAD subscription Payment Link and USD Pro checkout against the intended offer. Preserve experimental records; do not create another account, expose secrets, or activate live payments. Code and mocked tests do not prove the complete payment flow works.
+
 - Subscription rows, AI reservations, checkout reservations, and webhook event records are server-controlled. Never authorize users with editable user metadata.
 - Checkout reads current Stripe subscription history, prevents duplicate subscriptions/repeated trials, and uses a stable database reservation plus Stripe idempotency keys.
 - Stripe API version is pinned in `lib/stripe/server.ts`. Billing-period dates come from subscription items. Invoice webhook parsing supports current `parent.subscription_details` and older snapshots.

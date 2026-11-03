@@ -42,9 +42,13 @@ The timestamped migration filenames match the versions recorded by the hosted mi
 
 In Supabase Auth, configure the site URL and confirmation redirect URL (`/auth/callback`). Review the password policy and leaked-password protection in the dashboard. The signup form requires 12 characters; the hosted Auth policy must be configured separately.
 
-## Billing setup
+## Billing setup — on hold
 
-Configure the monthly and annual Price IDs and public site URL. The pricing modal reads current amounts and currency from Stripe; it does not assume an annual discount. Only Pro is purchasable. The Free plan needs no card.
+**Leave billing as-is until the user explicitly authorizes resumption.** Coordinate all Stripe work with the existing **Plan Stripe account management** chat. Direct two-way messaging is authorized; billing changes are not. See [Stripe coordination and resume gate](docs/STRIPE_COORDINATION.md) for the designated sandbox, chat IDs, preservation rules, and required CAD Payment Link / USD Pro checkout reconciliation.
+
+The setup notes below describe the existing implementation and future authorized setup; they are not permission to change billing or proof of a complete working payment flow.
+
+The existing code targets monthly and annual Price IDs and a public site URL. The pricing modal reads amounts and currency from Stripe; it does not assume an annual discount. Only Pro has a Checkout path in the existing code. The Free plan needs no card. These implementation details do not settle the intended offer.
 
 Forward these events to `/api/stripe/webhook`, with the corresponding signing secret:
 
@@ -58,6 +62,8 @@ The server uses Stripe API `2026-10-28.endive` and accepts current and older inv
 Checkout uses a database reservation and Stripe idempotency keys. Repeated attempts reuse an open session. An in-progress checkout holds its selected billing cycle for about 30 minutes; finish it or wait for expiry before switching cycles. Returning subscribers do not receive another trial.
 
 ## Current plan limits
+
+These are the current application entitlements, not a reconciled or approved currency/pricing offer. The Stripe coordination hold still applies.
 
 | Capability | Free | Pro and active trial |
 | --- | --- | --- |

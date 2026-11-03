@@ -24,7 +24,7 @@ The crowded feature set makes another generic cover-letter generator a weak prod
 - Hardened posting requests and DOCX previews; removed random résumé scores and sample analytics.
 - Added mobile navigation and responsive layouts, repaired setup-wizard and job-to-analysis actions, and deferred the analytics bundle until needed.
 
-Before accepting real payments, complete the Stripe lifecycle tests and hosted Auth/settings checks in [TESTING.md](TESTING.md). Billing was verified in test mode.
+Billing remains under the user's leave-as-is hold; see [Stripe coordination](STRIPE_COORDINATION.md). Prior evidence covers test-mode price reads, mocked Stripe calls, and database coordination, not the complete payment flow. After explicit authorization to resume, reconcile the CAD Payment Link and USD Pro checkout with Stripe Manage before billing changes, then complete the agreed sandbox lifecycle and hosted Auth/settings checks in [TESTING.md](TESTING.md). Live payments are not authorized.
 
 ## Milestone 1 Complete job workspace — implemented
 

@@ -1,5 +1,7 @@
 # ApplyIQ testing and verification
 
+**Stripe billing work remains on hold.** Follow [Stripe coordination](STRIPE_COORDINATION.md): direct chat coordination is authorized, while new billing changes and payment-flow experiments require explicit user authorization to resume. Preserve existing experimental records. Existing code, mocked calls, and test-mode price lookups do not establish a complete working payment flow.
+
 ## Local checks
 
 ```sh
@@ -63,6 +65,8 @@ This walkthrough passed on November 2 2026, including the due-date save and subs
 - Timestamped migration filenames were aligned with hosted history after verifying identical SQL checksums. The legacy SQL Editor baseline still requires reconciliation before a future CLI push.
 
 ## Launch checks
+
+The Stripe items below are future checks, not instructions to resume billing. After the user explicitly lifts the hold, reconcile the CAD subscription Payment Link and USD Pro checkout with Stripe Manage before changing billing or executing the agreed sandbox payment-flow tests. Do not activate live payments under this coordination authorization.
 
 - Walk registration, confirmation, login, and password recovery with a test account. Verify hosted Auth redirects and password policy.
 - Exercise Checkout, renewal, failed payment, cancellation, and webhook retries in Stripe test mode. Unit tests and a price lookup do not replace complete checkout/webhook delivery tests.
