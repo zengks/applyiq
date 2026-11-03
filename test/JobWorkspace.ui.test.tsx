@@ -122,6 +122,16 @@ async function openMaterials() {
 }
 
 describe('complete application workspace', () => {
+  it('warns before navigating away during an in-flight analysis', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => new Promise(() => {})));
+    render(<JobWorkspace application={application} />);
+    await openMaterials();
+    fireEvent.click(screen.getByRole('button', { name: 'Analyze selected résumé' }));
+    await screen.findByText('Analyzing the saved posting and selected résumé…');
+    const event = new Event('beforeunload', { cancelable: true });
+    window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+  });
   it('records the native submission date shown to the user', async () => {
     render(<JobWorkspace application={application} />);
     fireEvent.click(screen.getByRole('button', { name: 'Submissions & timeline' }));

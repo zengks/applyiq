@@ -59,7 +59,7 @@ This walkthrough passed on November 2 2026, including the due-date save and subs
 - Existing Stripe prices were read successfully in test mode. Anthropic authentication and availability of `claude-sonnet-4-6` were checked without generating content.
 - The production dependency audit reported zero vulnerabilities. Development tooling retains moderate upstream findings; see `DEPENDENCIES.md`.
 - TypeScript, ESLint, the unit suite, and the Webpack production build passed during implementation.
-- The workspace milestone passed 171 tests. Coverage includes the saved résumé used for analysis, original submitted versions after edits, failed saves, input snapshots, duplicate detection, and native date submission.
+- The workspace milestone passed 172 tests. Coverage includes the saved résumé used for analysis, original submitted versions after edits, failed saves, input snapshots, duplicate detection, native date submission, and navigation warnings during analysis.
 - Timestamped migration filenames were aligned with hosted history after verifying identical SQL checksums. The legacy SQL Editor baseline still requires reconciliation before a future CLI push.
 
 ## Launch checks

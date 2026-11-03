@@ -160,14 +160,14 @@ export default function JobWorkspace({ application }: { application: Application
   }, [application.id, workspaceClient, dispatch, syncStatus.pending, refresh]);
 
   useEffect(() => {
-    if (!dirty) return;
+    if (!dirty && !busy) return;
     const warn = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = '';
     };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty]);
+  }, [dirty, busy]);
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
