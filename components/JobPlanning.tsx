@@ -12,6 +12,13 @@ import {
   loadJobPlanning,
   safePlanningUrl,
 } from '@/lib/planning';
+import FollowUpFields from './FollowUpFields';
+import {
+  FOLLOW_UP_LABELS,
+  followUpInputSchema,
+  followUpValues,
+  type JobFollowUp,
+} from '@/lib/followUp';
 import { downloadCalendar, interviewCalendarEvent } from '@/lib/calendar';
 
 export interface PlannerHandle {
@@ -19,10 +26,33 @@ export interface PlannerHandle {
 }
 type Editor = {
   token: string;
-  kind: 'contact' | 'interview';
+  kind: 'contact' | 'interview' | 'draft';
   id: string;
   revision: number | null;
   values: Record<string, string>;
+};
+const editorCopy = {
+  contact: {
+    form: 'Contact editor',
+    title: 'Contact details',
+    save: 'Save contact',
+    rpc: 'save_job_contact',
+    saved: 'Contact saved.',
+  },
+  interview: {
+    form: 'Interview editor',
+    title: 'Interview details',
+    save: 'Save interview',
+    rpc: 'save_job_interview',
+    saved: 'Interview saved. Re-export any calendar copy after changes.',
+  },
+  draft: {
+    form: 'Follow-up draft editor',
+    title: 'Follow-up draft',
+    save: 'Save draft',
+    rpc: 'save_job_follow_up_draft',
+    saved: 'Follow-up draft saved.',
+  },
 };
 const contactValues = (contact?: JobContact) => ({
   name: contact?.name ?? '',
@@ -59,9 +89,11 @@ export default function JobPlanning({
   onDirtyChange: (dirty: boolean) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const { workspaceClient, accountId, saveWorkspace, dispatch, syncStatus } = useStore();
+  const { workspaceClient, accountId, profileName, saveWorkspace, dispatch, syncStatus } =
+    useStore();
   const [contacts, setContacts] = useState<JobContact[]>([]);
   const [interviews, setInterviews] = useState<JobInterview[]>([]);
+  const [drafts, setDrafts] = useState<JobFollowUp[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState('');
@@ -102,13 +134,15 @@ export default function JobPlanning({
     return () => window.removeEventListener('beforeunload', warn);
   });
   useEffect(() => {
-    if (editor) form.current?.querySelector<HTMLInputElement>('input:not([type=hidden])')?.focus();
+    if (editor)
+      form.current?.querySelector<HTMLElement>('input:not([type=hidden]), select')?.focus();
   }, [editor]);
   const refresh = useCallback(async () => {
-    if (!accountId) throw new Error('Sign in before loading contacts and interviews.');
+    if (!accountId) throw new Error('Sign in before opening job planning.');
     const result = await loadJobPlanning(workspaceClient, application.id, accountId);
     setContacts(result.contacts);
     setInterviews(result.interviews);
+    setDrafts(result.drafts);
     setLoaded(true);
     setLoadError('');
     await dispatch({
@@ -125,6 +159,7 @@ export default function JobPlanning({
         if (!active) return;
         setContacts(result.contacts);
         setInterviews(result.interviews);
+        setDrafts(result.drafts);
         setLoaded(true);
         setLoadError('');
         void dispatch({
@@ -134,14 +169,18 @@ export default function JobPlanning({
         });
       })
       .catch(() => {
-        if (active) setLoadError('Could not load interviews and contacts. Retry before editing.');
+        if (active) setLoadError('Could not load job planning. Retry before editing.');
       });
     return () => {
       active = false;
     };
   }, [accountId, workspaceClient, application.id, dispatch]);
-  function open(kind: Editor['kind'], item?: JobContact | JobInterview) {
-    if (isDirty() && !window.confirm('Discard unsaved interview or contact edits?')) return;
+  function openEditor(
+    kind: Editor['kind'],
+    values: Editor['values'],
+    item?: { id: string; revision: number },
+  ) {
+    if (isDirty() && !window.confirm('Discard unsaved planning edits?')) return;
     setNotice('');
     setDirty(false);
     setEditor({
@@ -149,11 +188,21 @@ export default function JobPlanning({
       token: crypto.randomUUID(),
       id: item?.id ?? crypto.randomUUID(),
       revision: item?.revision ?? null,
-      values:
-        kind === 'contact'
-          ? contactValues(item as JobContact | undefined)
-          : interviewValues(item as JobInterview | undefined),
+      values,
     });
+  }
+  const openContact = (item?: JobContact) => openEditor('contact', contactValues(item), item);
+  const openInterview = (item?: JobInterview) =>
+    openEditor('interview', interviewValues(item), item);
+  const openDraft = (item?: JobFollowUp) => openEditor('draft', followUpValues(item), item);
+
+  async function copyDraft(draft: JobFollowUp) {
+    try {
+      await navigator.clipboard.writeText(`Subject: ${draft.subject}\n\n${draft.body}`);
+      setNotice('Draft copied. Review it in your email app before sending.');
+    } catch {
+      setNotice('Clipboard unavailable. Open the saved message and select its text to copy it.');
+    }
   }
   async function persist(
     kind: Editor['kind'],
@@ -166,17 +215,19 @@ export default function JobPlanning({
     if (
       !fromEditor &&
       isDirty() &&
-      !window.confirm('Discard unsaved interview or contact edits before making this change?')
+      !window.confirm('Discard unsaved planning edits before making this change?')
     )
       return;
     setBusy(true);
     setNotice('');
     try {
       const saved = await saveWorkspace(async (client) => {
-        const result = await client.rpc(
-          kind === 'contact' ? 'save_job_contact' : 'save_job_interview',
-          { record_id: id, job_id: application.id, details, expected_revision: revision },
-        );
+        const result = await client.rpc(editorCopy[kind].rpc, {
+          record_id: id,
+          job_id: application.id,
+          details,
+          expected_revision: revision,
+        });
         if (result.error) {
           if (result.error.message.includes('elsewhere'))
             setNotice(
@@ -188,11 +239,7 @@ export default function JobPlanning({
         await refresh();
         setEditor(null);
         setDirty(false);
-        setNotice(
-          kind === 'contact'
-            ? 'Contact saved.'
-            : 'Interview saved. Re-export any calendar copy after changes.',
-        );
+        setNotice(editorCopy[kind].saved);
       });
       if (!saved)
         setNotice(
@@ -215,6 +262,13 @@ export default function JobPlanning({
           archived: value.archived === 'true',
         });
         await persist('contact', editor.id, editor.revision, details, true);
+      } else if (editor.kind === 'draft') {
+        const details = followUpInputSchema.parse({
+          ...value,
+          contact_id: value.contact_id || null,
+          interview_id: value.interview_id || null,
+        });
+        await persist('draft', editor.id, editor.revision, details, true);
       } else {
         const duration = Number(value.duration);
         if (!Number.isInteger(duration) || duration < 1 || duration > 1440)
@@ -259,7 +313,9 @@ export default function JobPlanning({
       setNotice(
         error instanceof Error
           ? 'issues' in error
-            ? 'Check required fields, lengths, email, and http(s) links.'
+            ? editor.kind === 'draft'
+              ? 'Enter a subject and message within the field limits.'
+              : 'Check required fields, lengths, email, and http(s) links.'
             : error.message
           : 'Review the form before saving.',
       );
@@ -294,7 +350,7 @@ export default function JobPlanning({
           <button
             onClick={() =>
               void refresh().catch(() =>
-                setLoadError('Could not load interviews and contacts. Retry before editing.'),
+                setLoadError('Could not load job planning. Retry before editing.'),
               )
             }
           >
@@ -302,7 +358,7 @@ export default function JobPlanning({
           </button>
         </div>
       )}
-      {!loaded && !loadError && <p role="status">Loading interviews and contacts…</p>}
+      {!loaded && !loadError && <p role="status">Loading interviews, contacts, and drafts…</p>}
       {notice && (
         <p role="status" className="jw-notice">
           {notice}
@@ -330,11 +386,61 @@ export default function JobPlanning({
           Export upcoming interviews ({upcoming.length})
         </button>
       </section>
+      <section className="jw-card">
+        <div className="jp-section-heading">
+          <h3>Follow-up drafts</h3>
+          <button disabled={disabled || drafts.length >= 100} onClick={() => openDraft()}>
+            New follow-up draft
+          </button>
+        </div>
+        <p className="jw-muted">Draft a thank-you or check-in, then copy it to your email app.</p>
+        {drafts.length >= 100 && (
+          <p className="jw-muted">
+            This job has 100 saved drafts. Open an existing draft to edit it.
+          </p>
+        )}
+        {drafts.map((draft) => {
+          const contact = contacts.find((item) => item.id === draft.contact_id);
+          const interview = interviews.find((item) => item.id === draft.interview_id);
+          return (
+            <article
+              className="jp-record"
+              key={draft.id}
+              aria-label={`Follow-up draft: ${draft.subject}`}
+            >
+              <div className="jp-section-heading">
+                <h4>{draft.subject}</h4>
+                <span className="jp-badge">{FOLLOW_UP_LABELS[draft.kind]}</span>
+              </div>
+              <p>
+                {contact
+                  ? `For ${contact.name}${contact.archived ? ' (archived)' : ''}${contact.email ? ` · ${contact.email}` : ''}`
+                  : 'No contact selected'}
+              </p>
+              {interview && (
+                <p>
+                  {interview.title} · {interview.localStart.slice(0, 10)}
+                </p>
+              )}
+              <details>
+                <summary>Read saved message</summary>
+                <p className="jp-preserve">{draft.body}</p>
+              </details>
+              <div className="jw-actions">
+                <button disabled={disabled} onClick={() => openDraft(draft)}>
+                  Edit draft
+                </button>
+                <button onClick={() => void copyDraft(draft)}>Copy draft</button>
+              </div>
+            </article>
+          );
+        })}
+      </section>
       <div className="jp-columns">
         <section className="jw-card">
           <div className="jp-section-heading">
             <h3>Interviews</h3>
-            <button disabled={disabled} onClick={() => open('interview')}>
+            <button disabled={disabled} onClick={() => openInterview()}>
               Schedule interview
             </button>
           </div>
@@ -378,7 +484,7 @@ export default function JobPlanning({
                 </details>
               )}
               <div className="jw-actions">
-                <button disabled={disabled} onClick={() => open('interview', item)}>
+                <button disabled={disabled} onClick={() => openInterview(item)}>
                   Edit / reschedule
                 </button>
                 <button disabled={disabled} onClick={() => exportInterviews([item])}>
@@ -435,7 +541,7 @@ export default function JobPlanning({
         <section className="jw-card">
           <div className="jp-section-heading">
             <h3>Recruiter contacts</h3>
-            <button disabled={disabled} onClick={() => open('contact')}>
+            <button disabled={disabled} onClick={() => openContact()}>
               Add contact
             </button>
           </div>
@@ -448,7 +554,7 @@ export default function JobPlanning({
                 key={item.id}
                 contact={item}
                 disabled={disabled}
-                onEdit={() => open('contact', item)}
+                onEdit={() => openContact(item)}
                 onArchive={() =>
                   void persist('contact', item.id, item.revision, {
                     ...contactInput(item),
@@ -469,7 +575,7 @@ export default function JobPlanning({
                     key={item.id}
                     contact={item}
                     disabled={disabled}
-                    onEdit={() => open('contact', item)}
+                    onEdit={() => openContact(item)}
                     onArchive={() =>
                       void persist('contact', item.id, item.revision, {
                         ...contactInput(item),
@@ -489,15 +595,23 @@ export default function JobPlanning({
           className="jw-card jp-editor"
           onSubmit={submit}
           onChange={() => setDirty(isDirty())}
-          aria-label={editor.kind === 'contact' ? 'Contact editor' : 'Interview editor'}
+          aria-label={editorCopy[editor.kind].form}
         >
-          <h3>{editor.kind === 'contact' ? 'Contact details' : 'Interview details'}</h3>
+          <h3>{editorCopy[editor.kind].title}</h3>
           <p className="jw-muted">
-            Save before leaving. Interview and contact forms are not included in device text
-            recovery.
+            Save planning edits before leaving. Device recovery covers only job and material fields.
           </p>
           <fieldset className="jw-fields" disabled={disabled}>
-            {editor.kind === 'contact' ? (
+            {editor.kind === 'draft' ? (
+              <FollowUpFields
+                application={application}
+                contacts={contacts}
+                interviews={interviews}
+                sender={profileName}
+                values={editor.values}
+                onEdit={() => setDirty(isDirty())}
+              />
+            ) : editor.kind === 'contact' ? (
               <>
                 <PlanningField
                   name="name"
@@ -634,12 +748,12 @@ export default function JobPlanning({
             )}
             <div className="jw-actions">
               <button type="submit" className="jw-primary">
-                {editor.kind === 'contact' ? 'Save contact' : 'Save interview'}
+                {editorCopy[editor.kind].save}
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  if (!isDirty() || window.confirm('Discard unsaved interview or contact edits?')) {
+                  if (!isDirty() || window.confirm('Discard unsaved planning edits?')) {
                     setEditor(null);
                     setDirty(false);
                   }

@@ -25,6 +25,8 @@ Action and deadline dates follow the browser’s local calendar. Interviews show
 
 Open **Interviews & contacts** to save job-specific recruiter details and private notes, link a contact to an interview, and reschedule, complete, or cancel the appointment. Save these forms before leaving the workspace.
 
+In **Follow-up drafts**, choose a thank-you or check-in template and optionally link a saved contact and interview. Edit the subject and message, save the draft, then copy it to your email app for review and sending. The template uses names and the interview date. Meeting links, private contact notes, and preparation notes stay in the workspace.
+
 Download individual interviews or a job’s upcoming appointments as `.ics` files. **Today** can also export dated actions and deadlines. Calendar files are snapshots for manual import and contain no invitations. Meeting links, locations, and preparation notes require explicit opt-in in the job workspace. Contact records are excluded.
 
 In a job workspace, **Keep recovery drafts on this device** is opt-in. It stores unsaved posting/notes/action/date fields, pasted résumé edits, and letter edits in this browser, separated by verified account and job. Up to ten workspaces are retained for seven days; expired copies are removed when accessed. Restore is explicit and never automatically writes to Supabase, retries a queued operation, or calls AI. Review restored edits and use the normal Save buttons. Newer saved fields are preserved unless you edited that field locally; overlapping changes produce a review notice.

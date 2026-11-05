@@ -307,7 +307,7 @@ export default function JobWorkspace({
       !dirtyNow ||
       window.confirm(
         planningEdits
-          ? 'Discard unsaved interview or contact edits? Those forms are not included in device text recovery.'
+          ? 'Discard unsaved planning edits? Device recovery covers only job and material fields.'
           : syncStatus.pending
             ? 'Close this workspace? Queued saves will stay pending; edits you have not saved will be discarded.'
             : recovery.enabled
@@ -592,7 +592,7 @@ export default function JobWorkspace({
                   tab === 'planning' &&
                   value !== 'planning' &&
                   planner.current?.isDirty() &&
-                  !window.confirm('Discard unsaved interview or contact edits?')
+                  !window.confirm('Discard unsaved planning edits?')
                 )
                   return;
                 if (detailsForm.current) setDetails(captureDetails());

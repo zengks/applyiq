@@ -47,7 +47,7 @@ Delivered: Today is the default dashboard view, grouping existing next actions a
 
 Delivered next: job-specific recruiter contacts and interview appointments with explicit time zones, rescheduling, completion, and cancellation. Today shows appointments alongside actions and deadlines. Individual and batch calendar downloads support manual import.
 
-Remaining: editable follow-up drafts that use the correct job and contact and leave sending under the user’s control.
+Delivered: editable interview thank-yous and recruiter check-ins. Each saved draft belongs to a job and can reference a contact and interview from that job. Users copy the reviewed draft to their own email app.
 
 Completion criteria:
 

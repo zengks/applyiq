@@ -35,7 +35,7 @@ const native = (label: string, value: string) =>
   );
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.load.mockResolvedValue({ contacts: [], interviews: [] });
+  mocks.load.mockResolvedValue({ contacts: [], interviews: [], drafts: [] });
   mocks.rpc.mockResolvedValue({ data: '2026-11-05T17:00:00Z', error: null });
   mocks.dispatch.mockResolvedValue(true);
   mocks.save.mockImplementation(async (work) => {
@@ -45,6 +45,7 @@ beforeEach(() => {
   mocks.useStore.mockReturnValue({
     workspaceClient: { rpc: mocks.rpc },
     accountId: 'owner',
+    profileName: 'Taylor Candidate',
     saveWorkspace: mocks.save,
     dispatch: mocks.dispatch,
     syncStatus: { pending: 0 },
@@ -128,4 +129,67 @@ describe('job planning forms', () => {
     await screen.findByText('This change is queued. Keep this page open and use Retry save above.');
     expect(screen.getByLabelText('Contact name')).toHaveValue('Unsaved');
   });
+});
+
+it('uses the selected interview and contact in an editable template, then saves only draft text and references', async () => {
+  const contactId = '30000000-0000-4000-8000-000000000001';
+  const interviewId = '40000000-0000-4000-8000-000000000001';
+  mocks.load.mockResolvedValue({
+    contacts: [
+      {
+        id: contactId,
+        name: 'Jordan Recruiter',
+        email: 'jordan@example.invalid',
+        notes: 'Private contact notes',
+      },
+    ],
+    interviews: [
+      {
+        id: interviewId,
+        title: 'Portfolio review',
+        localStart: '2026-11-06T14:00',
+        localEnd: '2026-11-06T14:45',
+        timeZone: 'America/Vancouver',
+        utcOffsetSeconds: -25200,
+        startsAt: '2026-11-06T21:00:00Z',
+        endsAt: '2026-11-06T21:45:00Z',
+        contactId,
+        status: 'completed',
+        notes: 'Private prep notes',
+        meetingUrl: 'https://example.invalid/private',
+      },
+    ],
+    drafts: [],
+  });
+  await ready();
+  fireEvent.click(screen.getByRole('button', { name: 'New follow-up draft' }));
+  fireEvent.change(screen.getByLabelText('Follow-up type'), { target: { value: 'thank_you' } });
+  fireEvent.change(screen.getByLabelText('Related interview'), { target: { value: interviewId } });
+  expect(screen.getByLabelText('Recipient contact')).toHaveValue(contactId);
+  fireEvent.click(screen.getByRole('button', { name: 'Fill template' }));
+  const body = (screen.getByLabelText('Draft message') as HTMLTextAreaElement).value;
+  expect(body).toContain('Hi Jordan Recruiter,');
+  expect(body).toContain('the Engineer role at Acme');
+  expect(body).toContain('Nov 6, 2026');
+  expect(body).toContain('Taylor Candidate');
+  expect(body).not.toMatch(/Private|example\.invalid/);
+  fireEvent.change(screen.getByLabelText('Draft message'), {
+    target: { value: 'Personalized by the applicant.' },
+  });
+  fireEvent.click(screen.getByRole('button', { name: 'Save draft' }));
+  await screen.findByText('Follow-up draft saved.');
+  expect(mocks.rpc).toHaveBeenCalledWith(
+    'save_job_follow_up_draft',
+    expect.objectContaining({
+      job_id: 'job',
+      expected_revision: null,
+      details: {
+        kind: 'thank_you',
+        contact_id: contactId,
+        interview_id: interviewId,
+        subject: 'Thank you — Engineer',
+        body: 'Personalized by the applicant.',
+      },
+    }),
+  );
 });

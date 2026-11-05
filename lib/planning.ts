@@ -1,3 +1,4 @@
+import type { JobFollowUp } from './followUp';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { JobContact, JobInterview } from './types';
@@ -151,7 +152,7 @@ export async function loadInterviews(client: SupabaseClient, ownerId: string) {
   }
 }
 export async function loadJobPlanning(client: SupabaseClient, jobId: string, ownerId: string) {
-  const [contacts, interviews] = await Promise.all([
+  const [contacts, interviews, drafts] = await Promise.all([
     client
       .from('application_contacts')
       .select('*')
@@ -166,8 +167,16 @@ export async function loadJobPlanning(client: SupabaseClient, jobId: string, own
       .eq('user_id', ownerId)
       .order('starts_at')
       .order('id'),
+    client
+      .from('application_follow_up_drafts')
+      .select('id,kind,contact_id,interview_id,subject,body,revision')
+      .eq('application_id', jobId)
+      .eq('user_id', ownerId)
+      .order('updated_at', { ascending: false })
+      .order('id'),
   ]);
   return {
+    drafts: (checked(drafts).data ?? []) as JobFollowUp[],
     contacts: (checked(contacts).data ?? []).map(mapContact),
     interviews: (checked(interviews).data ?? []).map(mapInterview),
   };

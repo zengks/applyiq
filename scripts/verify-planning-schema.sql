@@ -28,15 +28,56 @@ begin
   failed:=false; begin update public.application_interviews set ends_at=starts_at where id=i.id; exception when check_violation then failed:=true; end; assert failed,'Zero duration accepted';
   failed:=false; begin update public.application_contacts set application_id='20000000-0000-4000-8000-000000000002' where id=c.id; exception when others then failed:=true; end; assert failed,'Contact moved to another job';
 end $$;
+do $$
+declare
+  draft_id uuid := '50000000-0000-4000-8000-000000000001';
+  job_id uuid := '20000000-0000-4000-8000-000000000001';
+  other_job uuid := '20000000-0000-4000-8000-000000000002';
+  payload jsonb := '{"kind":"thank_you","contact_id":"30000000-0000-4000-8000-000000000001","interview_id":"40000000-0000-4000-8000-000000000001","subject":"Thank you","body":"Test draft"}';
+  draft public.application_follow_up_drafts;
+  failed boolean;
+begin
+  assert not has_table_privilege('anon', 'public.application_follow_up_drafts', 'select');
+  assert not has_function_privilege('anon', 'public.save_job_follow_up_draft(uuid,uuid,jsonb,integer)', 'execute');
+  draft := public.save_job_follow_up_draft(draft_id, job_id, payload);
+  assert draft.revision = 0;
+  draft := public.save_job_follow_up_draft(draft_id, job_id, payload || '{"body":"Personalized draft"}', 0);
+  assert draft.revision = 1 and draft.body = 'Personalized draft';
+  draft := public.save_job_follow_up_draft(draft_id, job_id, payload || '{"body":"Personalized draft"}', 0);
+  assert draft.revision = 1, 'An exact replay created a new revision';
+  failed := false;
+  begin
+    perform public.save_job_follow_up_draft(draft_id, job_id, payload, 0);
+  exception when raise_exception then failed := sqlerrm like 'Draft changed elsewhere%'; end;
+  assert failed, 'Stale draft edit accepted';
+  failed := false;
+  begin
+    perform public.save_job_follow_up_draft(gen_random_uuid(), other_job, payload - 'contact_id');
+  exception when foreign_key_violation then failed := true; end;
+  assert failed, 'Foreign-job interview accepted';
+  failed := false;
+  begin
+    perform public.save_job_follow_up_draft(gen_random_uuid(), other_job, payload - 'interview_id');
+  exception when foreign_key_violation then failed := true; end;
+  assert failed, 'Foreign-job contact accepted';
+end $$;
 set local request.jwt.claim.sub='10000000-0000-4000-8000-000000000002';
 do $$ declare failed boolean:=false; begin
   assert (select count(*)=0 from public.application_contacts),'Foreign contact visible';
   assert (select count(*)=0 from public.application_interviews),'Foreign interview visible';
+  assert (select count(*)=0 from public.application_follow_up_drafts),'Foreign draft visible';
+  update public.application_follow_up_drafts set body = 'Unauthorized';
+  assert not found, 'Foreign draft was edited';
   begin perform public.save_job_contact('30000000-0000-4000-8000-000000000009','20000000-0000-4000-8000-000000000001','{"name":"Foreign insert"}'); exception when others then failed:=true; end; assert failed,'Foreign save accepted';
 end $$;
 set local request.jwt.claim.sub='10000000-0000-4000-8000-000000000001';
--- A referenced contact must not prevent deleting its parent job.
+-- Removing an appointment clears the link and keeps the draft. Job removal cascades it.
+delete from public.application_interviews where id='40000000-0000-4000-8000-000000000001';
+do $$ begin
+  assert (select interview_id is null and body = 'Personalized draft' and revision = 2 from public.application_follow_up_drafts);
+end $$;
+
 delete from public.applications where id='20000000-0000-4000-8000-000000000001';
-do $$ begin assert (select count(*)=0 from public.application_contacts); assert (select count(*)=0 from public.application_interviews); end $$;
+do $$ begin assert (select count(*)=0 from public.application_contacts); assert (select count(*)=0 from public.application_interviews); assert (select count(*)=0 from public.application_follow_up_drafts); end $$;
 rollback;
 \echo 'Planning schema checks passed (rolled back).'
