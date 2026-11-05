@@ -10,12 +10,19 @@ import {
   validCalendarDate,
   type AgendaItem,
 } from '@/lib/today';
+import { agendaCalendarEvents, downloadCalendar } from '@/lib/calendar';
+import { interviewLabel, updateInterviewStatus } from '@/lib/planning';
 import { useLocalDay } from '@/lib/useLocalDay';
 
 export default function Today() {
-  const { applications, darkMode, dispatch } = useStore();
+  const { applications, interviews, darkMode, dispatch } = useStore();
   const { day, timeZone } = useLocalDay();
-  const items = useMemo(() => (day ? buildAgenda(applications, day) : []), [applications, day]);
+  const items = useMemo(
+    () => (day ? buildAgenda(applications, day, interviews) : []),
+    [applications, day, interviews],
+  );
+  const [exportNotice, setExportNotice] = useState('');
+  const calendarEvents = day ? agendaCalendarEvents(applications, interviews, day) : [];
   const needsAttention = items.filter((item) => item.group === 'today' || item.group === 'overdue');
   return (
     <main className="today-view workspace-view" data-theme={darkMode ? 'dark' : 'light'}>
@@ -29,6 +36,28 @@ export default function Today() {
           ＋ Add a job
         </button>
       </header>
+      <div className="today-calendar">
+        <button
+          disabled={!calendarEvents.length}
+          onClick={() => {
+            try {
+              downloadCalendar(calendarEvents);
+              setExportNotice(
+                'Calendar file downloaded. Imported copies do not sync changes or send invitations.',
+              );
+            } catch {
+              setExportNotice('Could not create the calendar file. Review saved dates.');
+            }
+          }}
+        >
+          Export calendar ({calendarEvents.length})
+        </button>
+        <p>
+          Scheduled interviews and dated next actions/deadlines. Meeting links, preparation notes,
+          and contact details are excluded.
+        </p>
+        {exportNotice && <p role="status">{exportNotice}</p>}
+      </div>
       <div className="today-intro">
         <div>
           <strong>{needsAttention.length}</strong>
@@ -37,8 +66,8 @@ export default function Today() {
           </span>
         </div>
         <p>
-          Your next steps and deadlines for applications you haven’t submitted. Pick one and keep
-          moving.
+          Your interviews, next steps, and deadlines in one place. Interview dates and times use
+          each appointment’s saved time zone.
         </p>
       </div>
       {day && items.length === 0 && (
@@ -85,15 +114,15 @@ export default function Today() {
         );
       })}
       <p className="today-footnote">
-        In-app reminders only. Dates follow your local calendar. Recording a submission removes its
-        application deadline from this view.
+        In-app reminders only. Action dates follow your local calendar; interview dates use their
+        saved time zones. Recording a submission removes its application deadline from this view.
       </p>
     </main>
   );
 }
 
 function AgendaCard({ item }: { item: AgendaItem }) {
-  const { dispatch, syncStatus } = useStore();
+  const { dispatch, syncStatus, saveWorkspace, accountId } = useStore();
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
@@ -127,6 +156,28 @@ function AgendaCard({ item }: { item: AgendaItem }) {
     );
     if (saved) setEditing(false);
   }
+  async function toggleInterview() {
+    if (!item.interview || !accountId) return;
+    setBusy(true);
+    try {
+      const saved = await saveWorkspace(async (client) => {
+        const result = await updateInterviewStatus(
+          client,
+          item.interview!.id,
+          accountId,
+          item.interview!.status === 'completed' ? 'scheduled' : 'completed',
+        );
+        await dispatch({ type: 'SYNC_INTERVIEWS', ...result });
+      });
+      setNotice(
+        saved
+          ? 'Interview saved. Update any imported calendar copy separately.'
+          : 'Change is queued. Keep this page open and use Retry save above.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function toggle() {
     setBusy(true);
     const saved = await dispatch({
@@ -144,14 +195,24 @@ function AgendaCard({ item }: { item: AgendaItem }) {
       <div className="today-item-heading">
         <div>
           <span className={`today-kind today-kind-${item.kind}`}>
-            {item.kind === 'action' ? 'Next action' : 'Deadline'}
+            {item.kind === 'action'
+              ? 'Next action'
+              : item.kind === 'interview'
+                ? 'Interview'
+                : 'Deadline'}
           </span>
           <h3>{item.title}</h3>
           <p>
             {item.application.company} <span aria-hidden>·</span> {item.application.role}
           </p>
         </div>
-        <span className="today-date">{item.date ? calendarLabel(item.date) : 'Choose a date'}</span>
+        <span className="today-date">
+          {item.interview
+            ? interviewLabel(item.interview)
+            : item.date
+              ? calendarLabel(item.date)
+              : 'Choose a date'}
+        </span>
       </div>
       <div className="today-controls">
         {item.kind === 'action' && (
@@ -159,18 +220,31 @@ function AgendaCard({ item }: { item: AgendaItem }) {
             {item.application.nextActionDone ? 'Reopen action' : 'Mark complete'}
           </button>
         )}
-        <button
-          disabled={disabled}
-          aria-expanded={editing}
-          onClick={() => setEditing((value) => !value)}
-        >
-          {editing ? 'Cancel date edit' : item.date ? 'Reschedule' : 'Set date'}
-        </button>
+        {item.interview && (
+          <button disabled={disabled} onClick={() => void toggleInterview()}>
+            {item.interview.status === 'completed' ? 'Reopen interview' : 'Mark interview complete'}
+          </button>
+        )}
+        {item.kind !== 'interview' && (
+          <button
+            disabled={disabled}
+            aria-expanded={editing}
+            onClick={() => setEditing((value) => !value)}
+          >
+            {editing ? 'Cancel date edit' : item.date ? 'Reschedule' : 'Set date'}
+          </button>
+        )}
         <button
           className="today-open"
-          onClick={() => void dispatch({ type: 'OPEN_DETAIL', id: item.application.id })}
+          onClick={() =>
+            void dispatch({
+              type: 'OPEN_DETAIL',
+              id: item.application.id,
+              ...(item.interview ? { section: 'planning' as const } : {}),
+            })
+          }
         >
-          Open workspace ↗
+          {item.interview ? 'Open / reschedule ↗' : 'Open workspace ↗'}
         </button>
       </div>
       {editing && (

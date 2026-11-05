@@ -41,15 +41,17 @@ Completion criteria:
 - Refreshing, retrying, or losing a connection does not create duplicate applications or hide an unsaved change.
 - A saved job remains useful after its source expires.
 
-## Milestone 2 Show what needs attention today — initial slice implemented
+## Milestone 2 Show what needs attention today
 
 Delivered: Today is the default dashboard view, grouping existing next actions and unsubmitted saved-job deadlines into overdue/today/upcoming/undated/completed sections. Actions can be completed/reopened and dates rescheduled or cleared. Each item opens its job workspace. Date-only values are compared against the browser’s local day and remain stable across time zones. Completed actions are collapsed. Explicit next actions on settled jobs remain visible.
 
-Remaining: interview appointments with explicit time zones, recruiter/referral contacts, calendar export, and editable follow-up drafts. Keep external sending under the user’s control. Existing job notes now save explicitly with job details. No interview time or appointment is inferred from a status label.
+Delivered next: job-specific recruiter contacts and interview appointments with explicit time zones, rescheduling, completion, and cancellation. Today shows appointments alongside actions and deadlines. Individual and batch calendar downloads support manual import.
+
+Remaining: editable follow-up drafts that use the correct job and contact and leave sending under the user’s control.
 
 Completion criteria:
 
-- Date-only tasks expose their date, completion state, and job destination; appointment reminders will need a time zone and time as well.
+- Date-only tasks expose their date, completion state, and job destination. Interviews also show the saved time and time zone.
 - Users can understand why an item appears today and change its schedule.
 - Follow-up drafts use the correct job/contact and remain editable before sending.
 

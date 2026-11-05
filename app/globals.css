@@ -390,3 +390,12 @@ body.dark {
 .job-workspace .jw-draft-controls label{display:flex;align-items:center;gap:8px;margin:0;font-size:12px;line-height:1.5}
 .job-workspace .jw-draft-controls p{font-size:11px;color:var(--jw-muted);margin:6px 0;line-height:1.6}
 .jw-draft-controls button{margin:8px 6px 0 0}.jw-draft-controls small{display:block;color:var(--jw-muted);font-size:10px;margin-top:7px}
+
+/* Job-owned appointments and contacts */
+.jp-intro{margin-bottom:20px}.jp-intro h3{margin:0 0 8px}.jp-intro p,.job-planning p{line-height:1.65;font-size:13px}
+.jp-columns{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}.jp-columns>.jw-card{min-width:0}
+.jp-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.jp-section-heading h3,.jp-section-heading h4{margin:0}
+.jp-record{padding:18px 0;border-top:1px solid var(--jw-line);margin-top:16px;overflow-wrap:anywhere}.jp-record h4{font-size:14px}.jp-record p{margin:6px 0}.jp-record a{color:#db2777;font-size:13px}.jp-record summary{cursor:pointer;font-size:12px;margin:12px 0}.jp-badge{font-size:10px;border:1px solid var(--jw-line);border-radius:20px;padding:3px 8px;text-transform:capitalize}.jp-cancelled{opacity:.7}.jp-preserve{white-space:pre-wrap}.jp-editor{margin-top:20px}.jp-editor input,.jp-editor select,.jp-editor textarea{width:100%;box-sizing:border-box}.jp-calendar{margin-bottom:18px}.jp-calendar p{max-width:760px}.jw-checkbox{display:flex!important;gap:9px;align-items:center}.job-workspace .jw-checkbox input{width:auto;margin:0}.today-calendar{margin-bottom:22px}.today-calendar p{font-size:12px;color:var(--today-muted);line-height:1.65;max-width:760px}.today-kind-interview{color:var(--today-accent)}.today-item:has(.today-kind-interview) .today-item-heading{display:block}.today-item:has(.today-kind-interview) .today-date{display:block;white-space:normal;margin-top:10px;line-height:1.6}
+@media(max-width:800px){.jp-columns{grid-template-columns:minmax(0,1fr)}.jp-section-heading{align-items:flex-start}.job-workspace .jw-tabs{overflow-x:auto;flex-shrink:0}.job-workspace .jw-tabs button{white-space:nowrap}}
+
+.job-workspace input[type=datetime-local]{min-height:40px;color-scheme:light}.job-workspace[data-theme=dark] input[type=datetime-local]{color-scheme:dark}

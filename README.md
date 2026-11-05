@@ -19,9 +19,13 @@ Vault slots remain plan-limited. Each job can keep up to 200 material versions a
 
 ## Today and device draft recovery
 
-The dashboard opens on **Today**: overdue, today, upcoming, undated, and completed next actions, plus deadlines for saved applications that have not been submitted. Complete/reopen actions, reschedule dates, and open the corresponding workspace directly. An offer or rejection does not hide an explicit next action; recording a submission removes its application deadline. Interview appointments, calendar export, and external notifications are future work.
+The dashboard opens on **Today**: overdue, today, upcoming, undated, and completed next actions, plus deadlines for saved applications that have not been submitted. Complete/reopen actions, reschedule dates, and open the corresponding workspace directly. An offer or rejection does not hide an explicit next action; recording a submission removes its application deadline. Scheduled interviews appear alongside those items and open the Interviews & contacts tab.
 
-Dates are calendar dates in the browser's local day; the view displays its time zone and refreshes after midnight or returning to the tab. It never converts date-only deadlines through midnight UTC.
+Action and deadline dates follow the browser’s local calendar. Interviews show the date, time, and start offset in the appointment’s saved time zone.
+
+Open **Interviews & contacts** to save job-specific recruiter details and private notes, link a contact to an interview, and reschedule, complete, or cancel the appointment. Save these forms before leaving the workspace.
+
+Download individual interviews or a job’s upcoming appointments as `.ics` files. **Today** can also export dated actions and deadlines. Calendar files are snapshots for manual import and contain no invitations. Meeting links, locations, and preparation notes require explicit opt-in in the job workspace. Contact records are excluded.
 
 In a job workspace, **Keep recovery drafts on this device** is opt-in. It stores unsaved posting/notes/action/date fields, pasted résumé edits, and letter edits in this browser, separated by verified account and job. Up to ten workspaces are retained for seven days; expired copies are removed when accessed. Restore is explicit and never automatically writes to Supabase, retries a queued operation, or calls AI. Review restored edits and use the normal Save buttons. Newer saved fields are preserved unless you edited that field locally; overlapping changes produce a review notice.
 

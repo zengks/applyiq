@@ -1,13 +1,14 @@
-import type { Application } from './types';
+import type { Application, JobInterview } from './types';
 
 export type AgendaGroup = 'overdue' | 'today' | 'upcoming' | 'unscheduled' | 'completed';
 export interface AgendaItem {
   id: string;
-  kind: 'action' | 'deadline';
+  kind: 'action' | 'deadline' | 'interview';
   application: Application;
   title: string;
   date: string | null;
   group: AgendaGroup;
+  interview?: JobInterview;
 }
 export const AGENDA_GROUPS: AgendaGroup[] = [
   'overdue',
@@ -21,7 +22,7 @@ export const AGENDA_LABELS: Record<AgendaGroup, string> = {
   today: 'Today',
   upcoming: 'Upcoming',
   unscheduled: 'No date yet',
-  completed: 'Completed actions',
+  completed: 'Completed',
 };
 
 export function validCalendarDate(value: string | null | undefined): value is string {
@@ -31,7 +32,11 @@ export function validCalendarDate(value: string | null | undefined): value is st
 }
 
 /** Calendar strings stay date-only: midnight UTC must not shift a deadline. */
-export function buildAgenda(applications: Application[], today: string): AgendaItem[] {
+export function buildAgenda(
+  applications: Application[],
+  today: string,
+  interviews: JobInterview[] = [],
+): AgendaItem[] {
   if (!validCalendarDate(today)) throw new Error('Invalid agenda date');
   const items: AgendaItem[] = [];
   const bucket = (date: string | null): AgendaGroup =>
@@ -66,10 +71,26 @@ export function buildAgenda(applications: Application[], today: string): AgendaI
       });
     }
   }
+  const jobs = new Map(applications.map((job) => [job.id, job]));
+  for (const interview of interviews) {
+    const application = jobs.get(interview.applicationId);
+    if (!application || interview.status === 'cancelled') continue;
+    const date = interview.localStart.slice(0, 10);
+    items.push({
+      id: interview.id,
+      kind: 'interview',
+      application,
+      title: interview.title,
+      date,
+      group: interview.status === 'completed' ? 'completed' : bucket(date),
+      interview,
+    });
+  }
   return items.sort(
     (a, b) =>
       AGENDA_GROUPS.indexOf(a.group) - AGENDA_GROUPS.indexOf(b.group) ||
       (a.date ?? '9999').localeCompare(b.date ?? '9999') ||
+      (a.interview?.startsAt ?? '').localeCompare(b.interview?.startsAt ?? '') ||
       a.application.company.localeCompare(b.application.company) ||
       a.id.localeCompare(b.id),
   );

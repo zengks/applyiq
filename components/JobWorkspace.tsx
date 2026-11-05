@@ -14,6 +14,11 @@ import {
 import { STATUS_LABELS, postingHeadline } from '@/lib/utils';
 import { useWorkspaceDraft } from '@/lib/useWorkspaceDraft';
 import { recoverDetails } from '@/lib/workspaceDraft';
+import dynamic from 'next/dynamic';
+import type { PlannerHandle } from '@/components/JobPlanning';
+const JobPlanning = dynamic(() => import('@/components/JobPlanning'), {
+  loading: () => <p role="status">Loading interview workspace…</p>,
+});
 
 const STATUSES: AppStatus[] = ['saved', 'applied', 'interview', 'offer', 'rejected'];
 const dateTime = (value: string) => new Date(value).toLocaleString();
@@ -34,7 +39,13 @@ function downloadText(name: string, text: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export default function JobWorkspace({ application }: { application: Application }) {
+export default function JobWorkspace({
+  application,
+  initialSection = 'overview',
+}: {
+  application: Application;
+  initialSection?: 'overview' | 'planning';
+}) {
   const {
     darkMode,
     dispatch,
@@ -47,13 +58,16 @@ export default function JobWorkspace({ application }: { application: Application
     checkingPostingIds,
     accountId,
   } = useStore();
-  const [tab, setTab] = useState<'overview' | 'materials' | 'history'>('overview');
+  const [tab, setTab] = useState<'overview' | 'materials' | 'planning' | 'history'>(initialSection);
   const [data, setData] = useState<JobWorkspaceData | null>(null);
   const [loadError, setLoadError] = useState('');
   const [loadedOwner, setLoadedOwner] = useState<string | null>(null);
   const [refresh, setRefresh] = useState(0);
   const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
+  const [plannerDirty, setPlannerDirty] = useState(false);
+  const [plannerBusy, setPlannerBusy] = useState(false);
+  const planner = useRef<PlannerHandle>(null);
   const [details, setDetails] = useState(() => detailsFor(application));
   const [savedDetails, setSavedDetails] = useState(() => detailsFor(application));
   const [resumeId, setResumeId] = useState(application.selectedResumeId ?? '');
@@ -91,8 +105,9 @@ export default function JobWorkspace({ application }: { application: Application
     !!resumeText.trim() ||
     !!resumeName.trim() ||
     letterText !== savedLetterText ||
-    letterTitle !== savedLetterTitle;
-  const disabled = busy || syncStatus.pending > 0 || !data || !!loadError;
+    letterTitle !== savedLetterTitle ||
+    plannerDirty;
+  const disabled = busy || plannerBusy || syncStatus.pending > 0 || !data || !!loadError;
   const resumeVersions = data?.materials.filter((item) => item.kind === 'resume') ?? [];
   const analyses = data?.materials.filter((item) => item.kind === 'analysis') ?? [];
   const letters = data?.materials.filter((item) => item.kind === 'cover_letter') ?? [];
@@ -285,16 +300,19 @@ export default function JobWorkspace({ application }: { application: Application
   }, []);
 
   function close() {
-    if (busy) return;
-    const dirtyNow = dirty || !sameFields(captureDetails(), savedDetails);
+    if (busy || plannerBusy) return;
+    const planningEdits = planner.current?.isDirty() ?? false;
+    const dirtyNow = dirty || planningEdits || !sameFields(captureDetails(), savedDetails);
     if (
       !dirtyNow ||
       window.confirm(
-        syncStatus.pending
-          ? 'Close this workspace? Queued saves will stay pending; edits you have not saved will be discarded.'
-          : recovery.enabled
-            ? 'Close this workspace and keep your edits as a recovery draft on this device? They still need to be saved to the database.'
-            : 'Discard unsaved edits? Saved versions will stay available.',
+        planningEdits
+          ? 'Discard unsaved interview or contact edits? Those forms are not included in device text recovery.'
+          : syncStatus.pending
+            ? 'Close this workspace? Queued saves will stay pending; edits you have not saved will be discarded.'
+            : recovery.enabled
+              ? 'Close this workspace and keep your edits as a recovery draft on this device? They still need to be saved to the database.'
+              : 'Discard unsaved edits? Saved versions will stay available.',
       )
     ) {
       recovery.flush();
@@ -541,7 +559,7 @@ export default function JobWorkspace({ application }: { application: Application
             <h2 id="workspace-title">{application.role}</h2>
             <p>{application.company}</p>
           </div>
-          <button aria-label="Close workspace" disabled={busy} onClick={close}>
+          <button aria-label="Close workspace" disabled={busy || plannerBusy} onClick={close}>
             ✕
           </button>
         </header>
@@ -564,12 +582,21 @@ export default function JobWorkspace({ application }: { application: Application
           ))}
         </div>
         <nav className="jw-tabs" aria-label="Workspace sections">
-          {(['overview', 'materials', 'history'] as const).map((value) => (
+          {(['overview', 'materials', 'planning', 'history'] as const).map((value) => (
             <button
               key={value}
               aria-current={tab === value ? 'page' : undefined}
               onClick={() => {
+                if (plannerBusy) return;
+                if (
+                  tab === 'planning' &&
+                  value !== 'planning' &&
+                  planner.current?.isDirty() &&
+                  !window.confirm('Discard unsaved interview or contact edits?')
+                )
+                  return;
                 if (detailsForm.current) setDetails(captureDetails());
+                if (value !== 'planning') setPlannerDirty(false);
                 setTab(value);
               }}
             >
@@ -577,7 +604,9 @@ export default function JobWorkspace({ application }: { application: Application
                 ? 'Job & next action'
                 : value === 'materials'
                   ? 'Résumés & materials'
-                  : 'Submissions & timeline'}
+                  : value === 'planning'
+                    ? 'Interviews & contacts'
+                    : 'Submissions & timeline'}
             </button>
           ))}
         </nav>
@@ -599,9 +628,10 @@ export default function JobWorkspace({ application }: { application: Application
               Keep recovery drafts on this device
             </label>
             <p>
-              Optional: keeps unsaved text in this browser for up to seven days and ten workspaces.
-              Separate for each signed-in account. Signing out or turning this off clears this
-              account’s device drafts. Skip this on a shared device.
+              Optional: keeps posting, next-action, notes, résumé, and letter edits in this browser
+              for up to seven days and ten workspaces. Separate for each signed-in account. Signing
+              out or turning this off clears this account’s device drafts. Skip this on a shared
+              device.
             </p>
             {recovery.candidate && (
               <div role="status">
@@ -634,6 +664,14 @@ export default function JobWorkspace({ application }: { application: Application
             </div>
           )}
           <fieldset disabled={disabled} className="jw-fields">
+            {tab === 'planning' && data && (
+              <JobPlanning
+                ref={planner}
+                application={application}
+                onDirtyChange={setPlannerDirty}
+                onBusyChange={setPlannerBusy}
+              />
+            )}
             {tab === 'overview' && (
               <form
                 ref={detailsForm}
@@ -1142,7 +1180,11 @@ export default function JobWorkspace({ application }: { application: Application
             className="jw-danger"
             disabled={disabled}
             onClick={() => {
-              if (window.confirm('Delete this application and its saved materials and history?'))
+              if (
+                window.confirm(
+                  'Delete this application, contacts, interviews, saved materials, and history?',
+                )
+              )
                 void dispatch({ type: 'DELETE_APP', id: application.id });
             }}
           >

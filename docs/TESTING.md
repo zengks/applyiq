@@ -103,3 +103,11 @@ The four-policy RLS migration is applied and its SQL checksum matches hosted his
 ## Hosted maintenance verification
 
 The [November 2 maintenance record](MAINTENANCE_2026-11-02.md) documents the verified private backup, completed upgrade to `17.11.0.011`, unchanged existing-data fingerprints, and completed provider physical backups. The five non-billing backend groups and the Today/workspace browser walkthrough also passed against the protected Vercel Preview. A one-time test-account confirmation callback established a hosted session without email delivery. No paid AI generation, real email-delivery, or payment-flow validation is claimed. Disposable accounts and local verification credentials are removed after the final smoke check.
+
+## Interview scheduling and calendar exports
+
+Use `scripts/verify-planning-schema.sql` only in an isolated schema test database with the scheduling migration applied. Its fixture transaction rolls back. It covers row ownership, same-job references, stale writes, time-zone rules, and cascading job deletion.
+
+Use `RUN_BACKEND_VERIFICATION=yes node --env-file=.env.local scripts/verify-planning.mjs create` to exercise the hosted RPCs with two disposable accounts. The helper checks simultaneous writes, retries, access isolation, and the per-job limit. Run the same command with `cleanup` to remove those accounts and the private temporary credential file.
+
+For browser verification, sign in as the first fixture account, open the interview from **Today**, and add **Jordan Recruiter (synthetic)**. Schedule **Portfolio conversation (synthetic)** with that contact, then reschedule it to November 6, 2026 at 14:00 in `America/Vancouver`. Reload and check the contact and time. Complete, reopen, and cancel an interview. Restore an archived contact and check that the link to its appointment stays intact. Check the same controls at phone width. Download the interview and inspect it for the expected `21:00Z` start and exclusion of private notes and links. The suite uses an independent iCalendar parser for format, escaping, cancellation status, and date-only event checks.

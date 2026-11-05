@@ -26,14 +26,19 @@ function WorkspaceLoading() {
         role="dialog"
         aria-modal="true"
         aria-label="Loading job workspace"
-        onKeyDown={event => {
+        onKeyDown={(event) => {
           if (event.key === 'Escape') close();
-          if (event.key === 'Tab') { event.preventDefault(); closeButton.current?.focus(); }
+          if (event.key === 'Tab') {
+            event.preventDefault();
+            closeButton.current?.focus();
+          }
         }}
       >
         <header className="job-workspace-header">
           <p role="status">Loading job workspace…</p>
-          <button ref={closeButton} onClick={close}>Close workspace</button>
+          <button ref={closeButton} onClick={close}>
+            Close workspace
+          </button>
         </header>
       </section>
     </>
@@ -41,8 +46,8 @@ function WorkspaceLoading() {
 }
 
 export default function DetailDrawer() {
-  const { selectedApp, showDetailDrawer } = useStore();
+  const { selectedApp, showDetailDrawer, detailSection } = useStore();
   return showDetailDrawer && selectedApp ? (
-    <JobWorkspace key={selectedApp.id} application={selectedApp} />
+    <JobWorkspace key={selectedApp.id} application={selectedApp} initialSection={detailSection} />
   ) : null;
 }

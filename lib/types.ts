@@ -132,3 +132,40 @@ export interface JobSubmission {
 }
 export interface JobStatusEvent { id: string; status: AppStatus; createdAt: string }
 export interface JobWorkspaceData { materials: JobMaterial[]; submissions: JobSubmission[]; events: JobStatusEvent[] }
+
+export interface JobContact {
+  id: string;
+  applicationId: string;
+  ownerId: string;
+  name: string;
+  role: string;
+  email: string;
+  phone: string;
+  profileUrl: string;
+  notes: string;
+  archived: boolean;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+}
+export type InterviewStatus = 'scheduled' | 'completed' | 'cancelled';
+export interface JobInterview {
+  localStart: string;
+  localEnd: string;
+  utcOffsetSeconds: number;
+  id: string;
+  applicationId: string;
+  ownerId: string;
+  title: string;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string;
+  status: InterviewStatus;
+  revision: number;
+  createdAt: string;
+  updatedAt: string;
+  contactId?: string | null;
+  location?: string;
+  meetingUrl?: string;
+  notes?: string;
+}

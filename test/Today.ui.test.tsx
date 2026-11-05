@@ -26,6 +26,7 @@ beforeEach(() => {
   mocks.dispatch.mockReset().mockResolvedValue(true);
   mocks.useStore.mockReturnValue({
     applications: [app],
+    interviews: [],
     darkMode: false,
     dispatch: mocks.dispatch,
     syncStatus: { pending: 0, error: '', saving: false },

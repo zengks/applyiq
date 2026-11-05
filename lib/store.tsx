@@ -10,6 +10,8 @@ import {
 import { needsCheck, MAX_URLS_PER_CHECK } from './postingCheck';
 import { PersistenceQueue, type SyncStatus } from './persistenceQueue';
 import { APPLICATION_LIST_FIELDS, mapApplicationRow } from './jobWorkspace';
+import { loadInterviews } from './planning';
+import type { JobInterview } from './types';
 
 export interface State {
   loading: boolean;
@@ -21,11 +23,13 @@ export interface State {
   resumeText: string;
   billingCycle: BillingCycle;
   applications: Application[];
+  interviews: JobInterview[];
   showOnboarding: boolean;
   onboardingStep: 1 | 2 | 3;
   showAddJobModal: boolean;
   showDetailDrawer: boolean;
   selectedAppId: string | null;
+  detailSection: 'overview' | 'planning';
   newJob: NewJobForm;
   jobUrl: string;
   jobDescription: string;
@@ -54,6 +58,7 @@ interface HydratePayload {
   billingCycle: BillingCycle;
   onboarded: boolean;
   applications: Application[];
+  interviews?: JobInterview[];
   resumes: Resume[];
   subscription: Subscription | null;
 }
@@ -68,12 +73,13 @@ export type Action =
   | { type: 'SET_BILLING'; cycle: BillingCycle }
   | { type: 'ADD_APP'; app: Application }
   | { type: 'SYNC_APP'; app: Application }
+  | { type: 'SYNC_INTERVIEWS'; applicationId: string; interviews: JobInterview[] }
   | { type: 'UPDATE_APP_STATUS'; id: string; status: AppStatus }
   | { type: 'UPDATE_APP_NOTES'; id: string; notes: string }
   | { type: 'UPDATE_APP_ACTION'; id: string; done?: boolean; due?: string | null }
   | { type: 'UPDATE_APP_DEADLINE'; id: string; deadline: string | null }
   | { type: 'DELETE_APP'; id: string }
-  | { type: 'OPEN_DETAIL'; id: string }
+  | { type: 'OPEN_DETAIL'; id: string; section?: 'overview' | 'planning' }
   | { type: 'CLOSE_DETAIL' }
   | { type: 'OPEN_ADD_JOB' }
   | { type: 'CLOSE_ADD_JOB' }
@@ -108,11 +114,13 @@ export const INITIAL: State = {
   resumeText: '',
   billingCycle: 'annual',
   applications: [],
+  interviews: [],
   showOnboarding: false,
   onboardingStep: 1,
   showAddJobModal: false,
   showDetailDrawer: false,
   selectedAppId: null,
+  detailSection: 'overview',
   newJob: emptyNewJob(),
   jobUrl: '',
   jobDescription: '',
@@ -144,6 +152,7 @@ export function reducer(state: State, action: Action): State {
         resumeText: p.resumeText,
         billingCycle: p.billingCycle,
         applications: p.applications,
+        interviews: p.interviews ?? [],
         resumes: p.resumes,
         subscription: p.subscription,
         showOnboarding: !p.onboarded,
@@ -157,12 +166,13 @@ export function reducer(state: State, action: Action): State {
     case 'ADD_APP': return { ...state, applications: [action.app, ...state.applications] };
     case 'SYNC_APP': return { ...state, applications: state.applications.some(app => app.id === action.app.id)
       ? state.applications.map(app => app.id === action.app.id ? action.app : app) : [action.app, ...state.applications] };
+    case 'SYNC_INTERVIEWS': return { ...state, interviews: [...state.interviews.filter(item => item.applicationId !== action.applicationId), ...action.interviews] };
     case 'UPDATE_APP_STATUS': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, status: action.status } : a) };
     case 'UPDATE_APP_NOTES': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, notes: action.notes } : a) };
     case 'UPDATE_APP_ACTION': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, ...(action.done !== undefined ? { nextActionDone: action.done } : {}), ...(action.due !== undefined ? { nextActionDue: action.due } : {}) } : a) };
     case 'UPDATE_APP_DEADLINE': return { ...state, applications: state.applications.map(a => a.id === action.id ? { ...a, deadline: action.deadline } : a) };
-    case 'DELETE_APP': return { ...state, applications: state.applications.filter(a => a.id !== action.id), showDetailDrawer: false, selectedAppId: null };
-    case 'OPEN_DETAIL': return { ...state, showDetailDrawer: true, selectedAppId: action.id };
+    case 'DELETE_APP': return { ...state, interviews: state.interviews.filter(item => item.applicationId !== action.id), applications: state.applications.filter(a => a.id !== action.id), showDetailDrawer: false, selectedAppId: null };
+    case 'OPEN_DETAIL': return { ...state, showDetailDrawer: true, selectedAppId: action.id, detailSection: action.section ?? 'overview' };
     case 'CLOSE_DETAIL': return { ...state, showDetailDrawer: false, selectedAppId: null };
     case 'OPEN_ADD_JOB': return { ...state, showAddJobModal: true, newJob: emptyNewJob() };
     case 'CLOSE_ADD_JOB': return { ...state, showAddJobModal: false };
@@ -408,11 +418,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     userIdRef.current = user.id;
     setAccountId(user.id);
 
-    const [profileRes, appsRes, resumesRes, subRes] = await Promise.all([
+    const [profileRes, appsRes, resumesRes, subRes, interviews] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
       supabase.from('applications').select(APPLICATION_LIST_FIELDS).eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('resumes').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       supabase.from('subscriptions').select('*').eq('user_id', user.id).maybeSingle(),
+      loadInterviews(supabase, user.id),
     ]);
     [profileRes, appsRes, resumesRes, subRes].forEach(checked);
     setLoadError('');
@@ -429,6 +440,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         billingCycle: (profile?.billing_cycle as BillingCycle) ?? 'annual',
         onboarded: Boolean(profile?.onboarded),
         applications: (appsRes.data ?? []).map(mapApplicationRow),
+        interviews,
         resumes: (resumesRes.data ?? []).map((r): Resume => ({
           id: r.id, name: r.name, updatedAt: (r.updated_at ?? '').slice(0, 10),
           jobsMatched: r.jobs_matched, atsScore: r.ats_score, isDefault: r.is_default,
