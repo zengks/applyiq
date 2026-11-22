@@ -94,6 +94,10 @@ export default function LoginPage() {
         </button>
 
         <div style={s.footer}>
+          <Link href="/forgot-password" className="auth-link" style={s.link}>Forgot password?</Link>
+        </div>
+
+        <div style={s.footer}>
           New to ApplyIQ? <Link href="/register" className="auth-link" style={s.link}>Create an account</Link>
         </div>
       </form>

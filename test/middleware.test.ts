@@ -28,6 +28,14 @@ describe('updateSession (auth middleware)', () => {
     expect(res.headers.get('location')).toBeNull(); // NextResponse.next(), no redirect
   });
 
+  it('lets signed-out users request recovery while protecting the password change form', async () => {
+    signedOut();
+    expect((await updateSession(reqFor('/forgot-password'))).headers.get('location')).toBeNull();
+    expect((await updateSession(reqFor('/reset-password'))).headers.get('location')).toBe('http://localhost/login');
+    signedIn();
+    expect((await updateSession(reqFor('/reset-password'))).headers.get('location')).toBeNull();
+  });
+
   it('returns JSON 401 for an unauthenticated API request', async () => {
     signedOut();
     const res = await updateSession(reqFor('/api/analyze'));

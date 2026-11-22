@@ -3,8 +3,8 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 /** Prefixes reachable without a session. Everything else requires auth. */
 const PUBLIC_PREFIXES = ['/login', '/register', '/auth', '/api/stripe/webhook'];
-/** Exact public paths (the landing page). */
-const PUBLIC_EXACT = ['/'];
+/** Public pages with no public subpaths. */
+const PUBLIC_EXACT = ['/', '/forgot-password'];
 
 /**
  * Refreshes the Supabase session cookie on every request and redirects

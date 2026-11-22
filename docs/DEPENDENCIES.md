@@ -4,6 +4,8 @@ All direct dependencies were checked against npm's stable `latest` tag on Novemb
 
 The update includes Next.js 16.4.4, React 19.3.1, Stripe 23.1.0, Anthropic SDK 1.4.0, Supabase JS 2.118.0, Supabase SSR 0.12.7, and Vitest 5.1.0. The installed dependency tree passes `npm ls --depth=0`.
 
+On November 22, 2026, the pilot release moved the Next.js runtime to 16.4.6. This stable patch includes the fixes from the [November Next.js security release](https://nextjs.org/blog/november-2026-security-release).
+
 ## Version exceptions
 
 | Package | Installed | Latest checked | Reason |

@@ -2,19 +2,24 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { safeAuthRedirect } from '@/lib/authRedirect';
 
-/** Handles the PKCE code from the email confirmation / OAuth redirect. */
+/** Exchanges the PKCE code from signup, recovery, or an OAuth redirect. */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = request.nextUrl;
   const code = searchParams.get('code');
+  const flowId = searchParams.get('sb_flow_id');
   const next = safeAuthRedirect(searchParams.get('next'));
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await supabase.auth.exchangeCodeForSession(
+      code,
+      flowId === null ? undefined : { flowId },
+    );
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return new NextResponse(null, { status: 303, headers: { Location: next } });
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=callback`);
+  const failure = next === '/reset-password' ? '/forgot-password' : '/login';
+  return new NextResponse(null, { status: 303, headers: { Location: `${failure}?error=callback` } });
 }

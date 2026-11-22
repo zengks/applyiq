@@ -68,7 +68,7 @@ This walkthrough passed on November 2 2026, including the due-date save and subs
 
 The Stripe items below are future checks, not instructions to resume billing. After the user explicitly lifts the hold, reconcile the CAD subscription Payment Link and USD Pro checkout with Stripe Manage before changing billing or executing the agreed sandbox payment-flow tests. Do not activate live payments under this coordination authorization.
 
-- Walk registration, confirmation, login, and password recovery with a test account. Verify hosted Auth redirects and password policy.
+- Set the production Supabase Site URL to the canonical HTTPS domain and allowlist its `/auth/callback` endpoint. Keep the preview separately allowlisted. With authenticated SMTP configured, confirm registration, login, and recovery via an inbox controlled by the tester. Open the recovery link in the browser that requested it, check that an expired or repeated link returns to the request screen, and sign in with the new password. Local email capture verifies the app flow. Hosting and real inbox delivery require a separate check on the final domain.
 - Exercise Checkout, renewal, failed payment, cancellation, and webhook retries in Stripe test mode. Unit tests and a price lookup do not replace complete checkout/webhook delivery tests.
 - Configure Stripe trial reminder emails and confirm a test reminder arrives.
 - Review Stripe Tax registration and collection settings before accepting real payments.
@@ -76,6 +76,8 @@ The Stripe items below are future checks, not instructions to resume billing. Af
 - Review previously seeded remote test accounts for reused credentials. The seed utility no longer supplies or logs a shared password; existing credentials were not changed in this work.
 - Test mobile navigation, dialogs, keyboard scrolling, uploads, retry notices, and slow/offline saves on a phone.
 - Measure dashboard load, interaction latency, bundle requests, and AI cost with representative data before claiming performance improvements.
+
+On November 22, 2026, the app passed password recovery with an isolated Supabase Auth instance and local mail capture. A disposable account received a link, reached the reset page in the requesting session, updated its password, and signed in with the new password. Reuse of the link and unauthenticated access to the reset form were rejected. The isolated inbox does not validate production email delivery.
 
 ## Today and draft recovery verification
 

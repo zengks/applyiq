@@ -105,8 +105,6 @@ The hosted Postgres build is now `17.11.0.011`. The [November 2 maintenance reco
 
 ## Validate before expanding
 
-Observe a small set of consenting job seekers using Milestone 1. Look for repeated typing, lost documents, forgotten next steps, and suggestions they distrust. First measure whether they can create a useful saved application workspace without assistance. Then check whether they return and use the materials in a real application.
+Run the [protected pilot](JOB_SEEKER_WALKTHROUGH.md) to measure whether applicants can prepare a workspace, record a submission, and recover the exact materials later. Compare ApplyIQ with their usual workflow on equivalent scenarios. Prioritize faster capture or evidence review based on repeated friction. Repeat use and willingness to switch still need participant evidence.
 
-Choose the next milestone from those observations. A match score, generated document, or saved job does not establish an interview or offer.
-
-A [consenting job-seeker walkthrough](JOB_SEEKER_WALKTHROUGH.md) is prepared. Browser checks used synthetic accounts; no outreach or real-user validation has occurred.
+Before public signups, settle the public name and domain. [Adzuna already uses ApplyIQ](https://www.adzuna.com/apply-iq) for a job search product. Prepare production environment variables, verify real signup and recovery email, explain how résumé text is sent for AI analysis, and provide an export and account deletion path. See [launch checks](TESTING.md#launch-checks).
