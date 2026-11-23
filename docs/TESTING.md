@@ -130,7 +130,13 @@ Use an isolated Supabase Auth project and a protected Vercel preview that points
 
 Follow the signup and reset retest above. Verify both messages in the private inbox and confirm the links work on the same protected preview. Record the preview commit and observed results without including the inbox address, link URLs, tokens, or credentials. Mailgun's drop-message test mode discards mail and cannot prove inbox delivery. [Mailgun sending options](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/pass-sending-options)
 
-The isolated `ApplyIQ QA` Free Supabase project was provisioned with all eight tracked migrations and an empty Auth database. The [isolated protected preview](https://applyiq-mailgun-bx0sxfos8-zengksoutlookcoms-projects.vercel.app) built commit `aa6e100` in a separate Vercel custom environment. Anonymous requests reached Vercel Authentication. The isolated Auth project uses this exact preview origin and its signup and reset callbacks. On November 23, 2026, the Mailgun recipient invitation reached the approved Outlook QA alias and Mailgun confirmed activation. SMTP setup and hosted signup and password reset tests remain pending.
+The isolated `ApplyIQ QA` Free Supabase project was provisioned with all eight tracked migrations and an empty Auth database. The [isolated protected preview](https://applyiq-mailgun-bx0sxfos8-zengksoutlookcoms-projects.vercel.app) built commit `aa6e100` in a separate Vercel custom environment. Anonymous requests reached Vercel Authentication. The isolated Auth project uses this exact preview origin and its signup and reset callbacks.
+
+On November 23, 2026, the Mailgun recipient invitation reached the approved Outlook QA alias and Mailgun confirmed activation. The sandbox SMTP credential was saved in isolated Supabase Auth. In Chrome, a fresh signup delivered the confirmation email to Outlook. Opening the direct link in the same browser profile established an authenticated dashboard session. After sign-out, the recovery request delivered a second email to Outlook. Its direct link opened the protected password reset form. After sign-out, replaying that link returned to the request form with a fresh-link prompt.
+
+A third email verified password replacement through a recovery session established with the Supabase SDK and the original PKCE verifier. The new password authenticated the same test account, the old password was rejected, and refresh sessions were revoked. The isolated Auth email limit was temporarily raised from two to three per hour for this test and restored to two after Supabase accepted the third request.
+
+Outlook placed all three ApplyIQ Auth emails in Junk Email. The sandbox test verifies delivery to Outlook and the hosted Auth flows. Inbox placement and delivery from a verified sending domain remain open for public release.
 
 ## Interview scheduling and calendar exports
 
