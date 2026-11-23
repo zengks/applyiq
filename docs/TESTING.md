@@ -122,6 +122,14 @@ Reuse an approved transactional SMTP sender if one is already configured for the
 
 An isolated local Supabase Auth and Mailpit retest captured signup, confirmation resend, and recovery messages. The app's callback established the signup and recovery sessions. A superseded signup link and a reused recovery link were rejected. The new test password worked and the old password failed. This verifies local mail capture and link handling. Hosted inbox delivery remains pending.
 
+### Domainless Mailgun sandbox test
+
+Use Mailgun Free and its supplied sandbox domain for a hosted delivery test while ApplyIQ has no verified sending domain. The Free plan supports testing without a card. Verify the exact recipient in Mailgun using a private test inbox or an approved receiving alias. [Mailgun Free plan](https://help.mailgun.com/hc/en-us/articles/203068914-What-does-the-Free-plan-offer) · [Mailgun authorized recipients](https://help.mailgun.com/hc/en-us/articles/217531258-Authorized-Recipients)
+
+Use an isolated Supabase Auth project and a protected Vercel preview that points to it. The shared project serves existing users, while sandbox delivery is restricted to approved recipients. Confirm the isolated project is on a Free organization before provisioning. Configure the sandbox's SMTP credentials only in isolated Auth, retain email confirmation, allowlist the exact preview origin for callbacks, and turn off click tracking. Use synthetic accounts and fixtures. [Supabase plans and projects](https://supabase.com/docs/guides/platform/billing-on-supabase) · [Mailgun SMTP](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/send-smtp)
+
+Follow the signup and reset retest above. Verify both messages in the private inbox and confirm the links work on the same protected preview. Record the preview commit and observed results without including the inbox address, link URLs, tokens, or credentials. Mailgun's drop-message test mode discards mail and cannot prove inbox delivery. [Mailgun sending options](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/pass-sending-options)
+
 ## Interview scheduling and calendar exports
 
 Use `scripts/verify-planning-schema.sql` only in an isolated schema test database with the scheduling and follow-up draft migrations applied. Its fixture transaction rolls back. It covers row ownership, same-job references, stale writes, time-zone rules, and cascading job deletion.
