@@ -30,6 +30,8 @@ const detailsFor = (app: Application) => ({
   appliedAt: app.appliedAt ?? '',
   notes: app.notes,
 });
+type EditableDetails = ReturnType<typeof detailsFor>;
+const emptyResumeDraft = { name: '', text: '' };
 function downloadText(name: string, text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
   const anchor = document.createElement('a');
@@ -72,8 +74,8 @@ export default function JobWorkspace({
   const [savedDetails, setSavedDetails] = useState(() => detailsFor(application));
   const [resumeId, setResumeId] = useState(application.selectedResumeId ?? '');
   const [vaultId, setVaultId] = useState('');
-  const [resumeName, setResumeName] = useState('');
-  const [resumeText, setResumeText] = useState('');
+  const [resumeDraft, setResumeDraft] = useState(emptyResumeDraft);
+  const { name: resumeName, text: resumeText } = resumeDraft;
   const [analysisId, setAnalysisId] = useState('');
   const [letterId, setLetterId] = useState('');
   const [letterTitle, setLetterTitle] = useState('Cover letter');
@@ -88,25 +90,23 @@ export default function JobWorkspace({
   const submissionDateField = useRef<HTMLInputElement>(null);
   const queuedResume = useRef<{
     id: string;
-    text: string;
-    name: string;
+    draft: typeof resumeDraft | null;
   } | null>(null);
   const queuedLetter = useRef<{
     id: string;
     text: string;
     title: string;
   } | null>(null);
-  const queuedDetails = useRef<ReturnType<typeof detailsFor> | null>(null);
+  const queuedDetails = useRef<{
+    fields: Array<keyof EditableDetails>;
+    values: EditableDetails;
+  } | null>(null);
   const queuedAnalysis = useRef<string | null>(null);
   const detailsBaseline = useRef(savedDetails);
   const dirtyDetails = !sameFields(details, savedDetails);
-  const dirty =
-    dirtyDetails ||
-    !!resumeText.trim() ||
-    !!resumeName.trim() ||
-    letterText !== savedLetterText ||
-    letterTitle !== savedLetterTitle ||
-    plannerDirty;
+  const dirtyResume = !!resumeText.trim() || !!resumeName.trim();
+  const dirtyLetter = letterText !== savedLetterText || letterTitle !== savedLetterTitle;
+  const dirty = dirtyDetails || dirtyResume || dirtyLetter || plannerDirty;
   const disabled = busy || plannerBusy || syncStatus.pending > 0 || !data || !!loadError;
   const resumeVersions = data?.materials.filter((item) => item.kind === 'resume') ?? [];
   const analyses = data?.materials.filter((item) => item.kind === 'analysis') ?? [];
@@ -169,8 +169,7 @@ export default function JobWorkspace({
       return;
     const restored = recoverDetails(savedDetails, draft);
     setDetails(restored.details);
-    setResumeName(draft.resumeName);
-    setResumeText(draft.resumeText);
+    setResumeDraft({ name: draft.resumeName, text: draft.resumeText });
     if (
       draft.letterText !== draft.savedLetterText ||
       draft.letterTitle !== draft.savedLetterTitle
@@ -226,8 +225,7 @@ export default function JobWorkspace({
         let confirmed = false;
         const pendingResume = queuedResume.current;
         if (pendingResume && result.materials.some((item) => item.id === pendingResume.id)) {
-          setResumeText((value) => (value === pendingResume.text ? '' : value));
-          setResumeName((value) => (value === pendingResume.name ? '' : value));
+          setResumeDraft((draft) => (draft === pendingResume.draft ? emptyResumeDraft : draft));
           setResumeId(pendingResume.id);
           queuedResume.current = null;
           confirmed = true;
@@ -241,8 +239,9 @@ export default function JobWorkspace({
           confirmed = true;
         }
         const pendingDetails = queuedDetails.current;
-        if (pendingDetails && sameFields(detailsFor(result.application), pendingDetails)) {
-          setSavedDetails(pendingDetails);
+        if (
+          pendingDetails?.fields.every((field) => incoming[field] === pendingDetails.values[field])
+        ) {
           queuedDetails.current = null;
           confirmed = true;
         }
@@ -319,14 +318,25 @@ export default function JobWorkspace({
       void dispatch({ type: 'CLOSE_DETAIL' });
     }
   }
-  async function save(run: Parameters<typeof saveWorkspace>[0], success: string) {
+  async function save(
+    run: Parameters<typeof saveWorkspace>[0],
+    success: string,
+    onRejected?: () => void,
+  ) {
     if (disabled) return false;
     setBusy(true);
     setNotice('');
     try {
-      const saved = await saveWorkspace(run);
+      let rejection = '';
+      const saved = await saveWorkspace(run, (message) => {
+        rejection = message;
+        onRejected?.();
+        setNotice(message);
+      });
       setNotice(
-        saved ? success : 'This change is queued. Keep the page open and use Retry save above.',
+        saved
+          ? success
+          : rejection || 'This change is queued. Keep the page open and use Retry save above.',
       );
       if (saved) setRefresh((value) => value + 1);
       return saved;
@@ -340,30 +350,44 @@ export default function JobWorkspace({
     // and browser autofill can update a control without an onChange event.
     const values = captureDetails();
     setDetails(values);
-    queuedDetails.current = values;
-    const capturedAt =
-      values.description !== application.description
-        ? new Date().toISOString()
-        : (application.capturedAt ?? null);
-    const saved = await save(async (client) => {
-      checked(
-        await client
-          .from('applications')
-          .update({
-            description: values.description,
-            captured_at: capturedAt,
-            applied_at: values.appliedAt || null,
-            next_action: values.nextAction,
-            next_action_due: values.nextActionDue || null,
-            next_action_done: values.nextActionDone,
-            notes: values.notes,
-          })
-          .eq('id', application.id)
-          .select('id')
-          .single(),
-      );
-    }, 'Job details and next action saved.');
-    if (saved) setSavedDetails(values);
+    const baseline = detailsBaseline.current;
+    const fields = (Object.keys(values) as Array<keyof EditableDetails>).filter(
+      (field) => values[field] !== baseline[field],
+    );
+    if (!fields.length) {
+      setNotice('No changes to save.');
+      return;
+    }
+    queuedDetails.current = { fields, values };
+    const update = {
+      ...(fields.includes('description') && {
+        description: values.description,
+        captured_at: new Date().toISOString(),
+      }),
+      ...(fields.includes('appliedAt') && { applied_at: values.appliedAt || null }),
+      ...(fields.includes('nextAction') && { next_action: values.nextAction }),
+      ...(fields.includes('nextActionDue') && { next_action_due: values.nextActionDue || null }),
+      ...(fields.includes('nextActionDone') && { next_action_done: values.nextActionDone }),
+      ...(fields.includes('notes') && { notes: values.notes }),
+    };
+    const saved = await save(
+      async (client) => {
+        checked(
+          await client
+            .from('applications')
+            .update(update)
+            .eq('id', application.id)
+            .select('id')
+            .single(),
+        );
+      },
+      'Job details and next action saved.',
+      () => { queuedDetails.current = null; },
+    );
+    if (saved) {
+      const changes = Object.fromEntries(fields.map((field) => [field, values[field]]));
+      setSavedDetails((current) => ({ ...current, ...changes }));
+    }
   }
   async function attachResume(source: {
     name: string;
@@ -372,26 +396,31 @@ export default function JobWorkspace({
     sourceResumeId: string | null;
   }) {
     const id = crypto.randomUUID();
-    queuedResume.current = { id, text: source.text, name: source.name };
-    const saved = await save(async (client) => {
-      checked(
-        await client.rpc('save_application_material', {
-          record_id: id,
-          job_id: application.id,
-          material_kind: 'resume',
-          material_title: source.name.slice(0, 200),
-          material_body: source,
-        }),
-      );
-    }, 'Résumé snapshot saved. Future vault edits will not change this version.');
+    const draft = source.sourceResumeId ? null : resumeDraft;
+    queuedResume.current = { id, draft };
+    const saved = await save(
+      async (client) => {
+        checked(
+          await client.rpc('save_application_material', {
+            record_id: id,
+            job_id: application.id,
+            material_kind: 'resume',
+            material_title: source.name.slice(0, 200),
+            material_body: source,
+          }),
+        );
+      },
+      'Résumé snapshot saved. Future vault edits will not change this version.',
+      () => { queuedResume.current = null; },
+    );
     if (saved) {
       setResumeId(id);
-      setResumeText('');
-      setResumeName('');
+      setResumeDraft((current) => (current === draft ? emptyResumeDraft : current));
     }
   }
   async function analyze() {
-    if (disabled || !selectedResume || (!application.description?.trim() && !application.url))
+    const postingText = savedDetails.description;
+    if (disabled || dirtyDetails || !selectedResume || (!postingText.trim() && !application.url))
       return;
     setBusy(true);
     setNotice('Analyzing the saved posting and selected résumé…');
@@ -401,7 +430,7 @@ export default function JobWorkspace({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jobUrl: application.url,
-          jobDescription: application.description ?? '',
+          jobDescription: postingText,
           resumeText: selectedResume.body.text,
         }),
       });
@@ -412,7 +441,7 @@ export default function JobWorkspace({
         result,
         {
           jobUrl: application.url,
-          jobDescription: application.description ?? '',
+          jobDescription: postingText,
           resumeText: selectedResume.body.text,
           resumeName: selectedResume.body.name,
           sourceResumeId: selectedResume.body.sourceResumeId,
@@ -421,13 +450,19 @@ export default function JobWorkspace({
         selectedResume.id,
       );
       queuedAnalysis.current = params.analysis_record;
-      const saved = await saveWorkspace(async (client) => {
-        checked(await client.rpc('save_application_analysis', params));
-      });
+      let rejection = '';
+      const saved = await saveWorkspace(
+        async (client) => { checked(await client.rpc('save_application_analysis', params)); },
+        (message) => {
+          rejection = message;
+          queuedAnalysis.current = null;
+          setNotice(message);
+        },
+      );
       setNotice(
         saved
           ? 'Analysis and generated cover letter saved as new versions.'
-          : 'The generated materials are queued. Keep this page open and use Retry save above.',
+          : rejection || 'The generated materials are queued. Keep this page open and use Retry save above.',
       );
       if (saved) {
         setAnalysisId(params.analysis_record);
@@ -439,18 +474,16 @@ export default function JobWorkspace({
       setBusy(false);
     }
   }
-  function openLetter(item: JobMaterial & { kind: 'cover_letter' }) {
-    if (
-      (letterText !== savedLetterText || letterTitle !== savedLetterTitle) &&
-      !window.confirm('Discard unsaved cover-letter edits?')
-    )
-      return false;
-    setLetterId(item.id);
-    setLetterTitle(item.title);
-    setSavedLetterTitle(item.title);
-    setLetterText(item.body.text);
-    setSavedLetterText(item.body.text);
-    setLetterSource(item.body.analysisVersionId);
+  function openLetter(item?: JobMaterial & { kind: 'cover_letter' }) {
+    if (dirtyLetter && !window.confirm('Discard unsaved cover-letter edits?')) return false;
+    const title = item?.title ?? 'Cover letter';
+    const text = item?.body.text ?? '';
+    setLetterId(item?.id ?? '');
+    setLetterTitle(title);
+    setSavedLetterTitle(title);
+    setLetterText(text);
+    setSavedLetterText(text);
+    setLetterSource(item?.body.analysisVersionId ?? null);
     return true;
   }
   async function saveLetter() {
@@ -458,17 +491,21 @@ export default function JobWorkspace({
     const text = letterText;
     const title = letterTitle.trim() || 'Cover letter';
     queuedLetter.current = { id, text, title };
-    const saved = await save(async (client) => {
-      checked(
-        await client.rpc('save_application_material', {
-          record_id: id,
-          job_id: application.id,
-          material_kind: 'cover_letter',
-          material_title: title,
-          material_body: { text, analysisVersionId: letterSource },
-        }),
-      );
-    }, 'Cover letter saved as a new version. Earlier versions remain unchanged.');
+    const saved = await save(
+      async (client) => {
+        checked(
+          await client.rpc('save_application_material', {
+            record_id: id,
+            job_id: application.id,
+            material_kind: 'cover_letter',
+            material_title: title,
+            material_body: { text, analysisVersionId: letterSource },
+          }),
+        );
+      },
+      'Cover letter saved as a new version. Earlier versions remain unchanged.',
+      () => { queuedLetter.current = null; },
+    );
     if (saved) {
       setLetterId(id);
       setSavedLetterText(text);
@@ -837,8 +874,12 @@ export default function JobWorkspace({
                           <button
                             disabled={disabled}
                             onClick={() => {
-                              setResumeName(`${selectedResume.body.name} (edited)`);
-                              setResumeText(selectedResume.body.text);
+                              if (dirtyResume && !window.confirm('Replace your unsaved résumé draft?'))
+                                return;
+                              setResumeDraft({
+                                name: `${selectedResume.body.name} (edited)`,
+                                text: selectedResume.body.text,
+                              });
                             }}
                           >
                             Create edited version
@@ -898,7 +939,7 @@ export default function JobWorkspace({
                         id="jw-resume-name"
                         maxLength={200}
                         value={resumeName}
-                        onChange={(e) => setResumeName(e.target.value)}
+                        onChange={(e) => setResumeDraft({ ...resumeDraft, name: e.target.value })}
                       />
                       <label htmlFor="jw-resume-text">Résumé text</label>
                       <textarea
@@ -906,7 +947,7 @@ export default function JobWorkspace({
                         rows={8}
                         maxLength={60000}
                         value={resumeText}
-                        onChange={(e) => setResumeText(e.target.value)}
+                        onChange={(e) => setResumeDraft({ ...resumeDraft, text: e.target.value })}
                       />
                       <button
                         disabled={disabled || !resumeName.trim() || !resumeText.trim()}
@@ -934,7 +975,7 @@ export default function JobWorkspace({
                       disabled={
                         disabled ||
                         !selectedResume ||
-                        (!application.description?.trim() && !application.url) ||
+                        (!savedDetails.description.trim() && !application.url) ||
                         dirtyDetails
                       }
                       onClick={() => void analyze()}
@@ -1011,19 +1052,7 @@ export default function JobWorkspace({
                     id="jw-letter"
                     value={letterId}
                     onChange={(e) => {
-                      const item = letters.find((item) => item.id === e.target.value);
-                      if (item) openLetter(item);
-                      else if (
-                        letterText === savedLetterText ||
-                        window.confirm('Discard unsaved letter edits?')
-                      ) {
-                        setLetterId('');
-                        setLetterText('');
-                        setSavedLetterText('');
-                        setLetterTitle('Cover letter');
-                        setSavedLetterTitle('Cover letter');
-                        setLetterSource(null);
-                      }
+                      openLetter(letters.find((item) => item.id === e.target.value));
                     }}
                   >
                     <option value="">Write a new letter</option>
@@ -1122,20 +1151,7 @@ export default function JobWorkspace({
                           const letter = letters.find(
                             (letter) => letter.id === item.coverLetterVersionId,
                           );
-                          if (letter && !openLetter(letter)) return;
-                          if (!letter) {
-                            if (
-                              letterText !== savedLetterText &&
-                              !window.confirm('Discard unsaved letter edits?')
-                            )
-                              return;
-                            setLetterId('');
-                            setLetterText('');
-                            setSavedLetterText('');
-                            setLetterTitle('Cover letter');
-                            setSavedLetterTitle('Cover letter');
-                            setLetterSource(null);
-                          }
+                          if (!openLetter(letter)) return;
                           setResumeId(item.resumeVersionId);
                           setTab('materials');
                         }}

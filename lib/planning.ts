@@ -183,26 +183,18 @@ export async function loadJobPlanning(client: SupabaseClient, jobId: string, own
 }
 export async function updateInterviewStatus(
   client: SupabaseClient,
-  id: string,
+  interview: JobInterview,
   ownerId: string,
-  status: JobInterview['status'],
 ) {
-  const row = checked(
+  const status = interview.status === 'completed' ? 'scheduled' : 'completed';
+  checked(
     await client
       .from('application_interviews')
-      .select('*')
-      .eq('id', id)
+      .update({ status })
+      .eq('id', interview.id)
+      .eq('application_id', interview.applicationId)
       .eq('user_id', ownerId)
-      .single(),
-  );
-  const interview = mapInterview(row.data);
-  checked(
-    await client.rpc('save_job_interview', {
-      record_id: id,
-      job_id: interview.applicationId,
-      details: { ...interviewInput(interview), status },
-      expected_revision: interview.revision,
-    }),
+      .eq('revision', interview.revision),
   );
   const result = checked(
     await client
@@ -213,9 +205,11 @@ export async function updateInterviewStatus(
       .order('starts_at')
       .order('id'),
   );
+  const interviews = (result.data ?? []).map(mapInterview);
   return {
     applicationId: interview.applicationId,
-    interviews: (result.data ?? []).map(mapInterview),
+    interviews,
+    saved: interviews.some((item) => item.id === interview.id && item.status === status),
   };
 }
 export function interviewLabel(interview: JobInterview) {

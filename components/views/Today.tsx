@@ -18,11 +18,15 @@ export default function Today() {
   const { applications, interviews, darkMode, dispatch } = useStore();
   const { day, timeZone } = useLocalDay();
   const items = useMemo(
-    () => (day ? buildAgenda(applications, day, interviews) : []),
-    [applications, day, interviews],
+    () => (day && timeZone ? buildAgenda(applications, day, interviews, timeZone) : []),
+    [applications, day, interviews, timeZone],
   );
   const [exportNotice, setExportNotice] = useState('');
-  const calendarEvents = day ? agendaCalendarEvents(applications, interviews, day) : [];
+  const [interviewNotice, setInterviewNotice] = useState('');
+  const calendarEvents = useMemo(
+    () => (day && timeZone ? agendaCalendarEvents(applications, interviews, day, timeZone) : []),
+    [applications, day, interviews, timeZone],
+  );
   const needsAttention = items.filter((item) => item.group === 'today' || item.group === 'overdue');
   return (
     <main className="today-view workspace-view" data-theme={darkMode ? 'dark' : 'light'}>
@@ -58,6 +62,7 @@ export default function Today() {
         </p>
         {exportNotice && <p role="status">{exportNotice}</p>}
       </div>
+      {interviewNotice && <p role="status">{interviewNotice}</p>}
       <div className="today-intro">
         <div>
           <strong>{needsAttention.length}</strong>
@@ -66,8 +71,7 @@ export default function Today() {
           </span>
         </div>
         <p>
-          Your interviews, next steps, and deadlines in one place. Interview dates and times use
-          each appointment’s saved time zone.
+          Your interviews, next steps, and deadlines are grouped by your device’s time zone.
         </p>
       </div>
       {day && items.length === 0 && (
@@ -89,7 +93,7 @@ export default function Today() {
         const content = (
           <div className="today-items">
             {rows.map((item) => (
-              <AgendaCard key={item.id} item={item} />
+              <AgendaCard key={item.id} item={item} onInterviewNotice={setInterviewNotice} />
             ))}
           </div>
         );
@@ -114,14 +118,20 @@ export default function Today() {
         );
       })}
       <p className="today-footnote">
-        In-app reminders only. Action dates follow your local calendar; interview dates use their
-        saved time zones. Recording a submission removes its application deadline from this view.
+        In-app reminders only. Interview cards show the scheduled date and time in the saved time
+        zone. Recording a submission removes its application deadline from this view.
       </p>
     </main>
   );
 }
 
-function AgendaCard({ item }: { item: AgendaItem }) {
+function AgendaCard({
+  item,
+  onInterviewNotice,
+}: {
+  item: AgendaItem;
+  onInterviewNotice: (notice: string) => void;
+}) {
   const { dispatch, syncStatus, saveWorkspace, accountId } = useStore();
   const [editing, setEditing] = useState(false);
   const [notice, setNotice] = useState('');
@@ -157,23 +167,27 @@ function AgendaCard({ item }: { item: AgendaItem }) {
     if (saved) setEditing(false);
   }
   async function toggleInterview() {
-    if (!item.interview || !accountId) return;
+    const interview = item.interview;
+    if (!interview || !accountId) return;
     setBusy(true);
+    onInterviewNotice('');
     try {
       const saved = await saveWorkspace(async (client) => {
-        const result = await updateInterviewStatus(
+        const { saved, applicationId, interviews } = await updateInterviewStatus(
           client,
-          item.interview!.id,
+          interview,
           accountId,
-          item.interview!.status === 'completed' ? 'scheduled' : 'completed',
         );
-        await dispatch({ type: 'SYNC_INTERVIEWS', ...result });
+        await dispatch({ type: 'SYNC_INTERVIEWS', applicationId, interviews });
+        onInterviewNotice(
+          saved
+            ? 'Interview saved. Update any imported calendar copy separately.'
+            : 'This interview changed elsewhere. Today now shows the latest saved interviews.',
+        );
       });
-      setNotice(
-        saved
-          ? 'Interview saved. Update any imported calendar copy separately.'
-          : 'Change is queued. Keep this page open and use Retry save above.',
-      );
+      if (!saved) {
+        onInterviewNotice('Change is queued. Keep this page open and use Retry save above.');
+      }
     } finally {
       setBusy(false);
     }

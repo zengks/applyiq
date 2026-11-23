@@ -376,7 +376,7 @@ interface Ctx extends State, DerivedValues {
   retryLoad: () => Promise<void>;
   retrySave: () => Promise<void>;
   discardUnsaved: () => Promise<void>;
-  saveWorkspace: (run: (client: SupabaseClient) => Promise<void>) => Promise<boolean>;
+  saveWorkspace: (run: (client: SupabaseClient) => Promise<void>, onRejected?: (message: string) => void) => Promise<boolean>;
   workspaceClient: SupabaseClient;
   /** Re-checks the given postings (all due ones when omitted) against their source. */
   checkPostings: (ids?: string[]) => Promise<void>;
@@ -490,7 +490,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return Promise.resolve(true);
   }, [supabase, saveQueue]);
 
-  const saveWorkspace = useCallback((run: (client: SupabaseClient) => Promise<void>) => {
+  const saveWorkspace = useCallback((run: (client: SupabaseClient) => Promise<void>, onRejected?: (message: string) => void) => {
     const owner = userIdRef.current;
     if (!owner) return Promise.resolve(false);
     return saveQueue.enqueue(async () => {
@@ -498,7 +498,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (error) throw error;
       if (data.user?.id !== owner) throw new Error('Account changed. Reload before saving.');
       await run(supabase);
-    });
+    }, onRejected);
   }, [supabase, saveQueue]);
 
   // Ask the server whether saved postings are still live. With no ids, checks

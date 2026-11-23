@@ -4,9 +4,15 @@ export interface SyncStatus {
   error: string;
 }
 
-/** Keep writes ordered and retain a failed write until the user retries it. */
+const MATERIAL_LIMIT_MESSAGE = 'This workspace has reached its 200 saved-version limit';
+
+/** Keep writes ordered and retain retryable failures until the user retries them. */
 export class PersistenceQueue {
-  private jobs: Array<{ run: () => Promise<void>; resolve?: (saved: boolean) => void }> = [];
+  private jobs: Array<{
+    run: () => Promise<void>;
+    resolve?: (saved: boolean) => void;
+    onRejected?: (message: string) => void;
+  }> = [];
   private running = false;
   private error = '';
 
@@ -22,9 +28,9 @@ export class PersistenceQueue {
     this.publish();
   }
 
-  enqueue(run: () => Promise<void>): Promise<boolean> {
+  enqueue(run: () => Promise<void>, onRejected?: (message: string) => void): Promise<boolean> {
     return new Promise(resolve => {
-      this.jobs.push({ run, resolve });
+      this.jobs.push({ run, resolve, onRejected });
       this.publish();
       if (this.error) {
         resolve(false);
@@ -54,8 +60,15 @@ export class PersistenceQueue {
           this.jobs.shift();
           job.resolve?.(true);
         } catch (error) {
-          console.error('Database save failed:', error);
           const message = error && typeof error === 'object' && 'message' in error ? String(error.message) : '';
+          if (message === MATERIAL_LIMIT_MESSAGE && error && typeof error === 'object' && 'code' in error && error.code === 'P0001') {
+            this.jobs.shift();
+            job.resolve?.(false);
+            job.onRejected?.(message);
+            this.publish();
+            continue;
+          }
+          console.error('Database save failed:', error);
           this.error = message.startsWith('Plan limit:')
             ? message
             : 'Your changes could not be saved. Keep this page open and retry.';

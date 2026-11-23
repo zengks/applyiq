@@ -133,7 +133,9 @@ describe('job planning forms', () => {
 
 it('uses the selected interview and contact in an editable template, then saves only draft text and references', async () => {
   const contactId = '30000000-0000-4000-8000-000000000001';
+  const firstContactId = '30000000-0000-4000-8000-000000000002';
   const interviewId = '40000000-0000-4000-8000-000000000001';
+  const firstInterviewId = '40000000-0000-4000-8000-000000000002';
   mocks.load.mockResolvedValue({
     contacts: [
       {
@@ -142,6 +144,7 @@ it('uses the selected interview and contact in an editable template, then saves 
         email: 'jordan@example.invalid',
         notes: 'Private contact notes',
       },
+      { id: firstContactId, name: 'Alex Recruiter', email: 'alex@example.invalid' },
     ],
     interviews: [
       {
@@ -158,14 +161,30 @@ it('uses the selected interview and contact in an editable template, then saves 
         notes: 'Private prep notes',
         meetingUrl: 'https://example.invalid/private',
       },
+      {
+        id: firstInterviewId,
+        title: 'Intro call',
+        localStart: '2026-11-02T10:00',
+        localEnd: '2026-11-02T10:30',
+        timeZone: 'America/Vancouver',
+        utcOffsetSeconds: -25200,
+        startsAt: '2026-11-02T17:00:00Z',
+        endsAt: '2026-11-02T17:30:00Z',
+        contactId: firstContactId,
+        status: 'completed',
+      },
     ],
     drafts: [],
   });
   await ready();
   fireEvent.click(screen.getByRole('button', { name: 'New follow-up draft' }));
   fireEvent.change(screen.getByLabelText('Follow-up type'), { target: { value: 'thank_you' } });
-  fireEvent.change(screen.getByLabelText('Related interview'), { target: { value: interviewId } });
-  expect(screen.getByLabelText('Recipient contact')).toHaveValue(contactId);
+  const relatedInterview = screen.getByLabelText('Related interview');
+  const recipient = screen.getByLabelText('Recipient contact');
+  fireEvent.change(relatedInterview, { target: { value: firstInterviewId } });
+  expect(recipient).toHaveValue(firstContactId);
+  fireEvent.change(relatedInterview, { target: { value: interviewId } });
+  expect(recipient).toHaveValue(contactId);
   fireEvent.click(screen.getByRole('button', { name: 'Fill template' }));
   const body = (screen.getByLabelText('Draft message') as HTMLTextAreaElement).value;
   expect(body).toContain('Hi Jordan Recruiter,');
@@ -173,6 +192,16 @@ it('uses the selected interview and contact in an editable template, then saves 
   expect(body).toContain('Nov 6, 2026');
   expect(body).toContain('Taylor Candidate');
   expect(body).not.toMatch(/Private|example\.invalid/);
+
+  fireEvent.change(recipient, { target: { value: firstContactId } });
+  fireEvent.change(relatedInterview, { target: { value: '' } });
+  expect(recipient).toHaveValue(firstContactId);
+  expect(screen.getByLabelText('Draft message')).toHaveValue(body);
+  expect(
+    screen.getByText('The recipient or interview changed. Review the subject and message before saving.'),
+  ).toBeInTheDocument();
+  fireEvent.change(relatedInterview, { target: { value: interviewId } });
+  fireEvent.change(recipient, { target: { value: contactId } });
   fireEvent.change(screen.getByLabelText('Draft message'), {
     target: { value: 'Personalized by the applicant.' },
   });

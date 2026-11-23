@@ -2,15 +2,20 @@
 
 import { useStore } from '@/lib/store';
 import { Application, AppStatus } from '@/lib/types';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { duplicateJobs } from '@/lib/jobWorkspace';
 
 export default function AddJobModal() {
-  const { showAddJobModal, newJob, darkMode, dispatch, checkPostings, applications } = useStore();
+  const { showAddJobModal } = useStore();
+  return showAddJobModal ? <AddJobForm /> : null;
+}
+
+function AddJobForm() {
+  const { newJob, darkMode, dispatch, checkPostings, applications } = useStore();
   const [submitting, setSubmitting] = useState(false);
   const [duplicateConfirmed, setDuplicateConfirmed] = useState('');
-
-  if (!showAddJobModal) return null;
+  const deadlineField = useRef<HTMLInputElement>(null);
+  const dismissed = useRef(false);
 
   const t = {
     p: darkMode ? '#f0ede9' : '#1a1917',
@@ -31,6 +36,11 @@ export default function AddJobModal() {
   const duplicates = duplicateJobs(applications, newJob);
   const duplicateKey = JSON.stringify([newJob.company, newJob.role, newJob.url, duplicates.map(app => app.id)]);
 
+  function close() {
+    dismissed.current = true;
+    void dispatch({ type: 'CLOSE_ADD_JOB' });
+  }
+
   async function handleSubmit() {
     if (submitting || !newJob.company.trim() || !newJob.role.trim()) return;
     if (duplicates.length && duplicateConfirmed !== duplicateKey) return;
@@ -42,7 +52,7 @@ export default function AddJobModal() {
       role: newJob.role.trim(),
       status: newJob.status as AppStatus,
       match: 0,
-      deadline: newJob.deadline || null,
+      deadline: deadlineField.current?.value || null,
       url: newJob.url,
       notes: newJob.notes,
       description: newJob.description,
@@ -52,9 +62,10 @@ export default function AddJobModal() {
       postingNote: '',
     };
     const saved = await dispatch({ type: 'ADD_APP', app });
-    setSubmitting(false);
-    dispatch({ type: 'CLOSE_ADD_JOB' });
-    dispatch({ type: 'OPEN_DETAIL', id: app.id });
+    if (!dismissed.current) {
+      close();
+      void dispatch({ type: 'OPEN_DETAIL', id: app.id });
+    }
     // Verify the link right away so a dead posting is flagged before the user
     // starts working on it.
     if (saved && app.url.trim()) void checkPostings([app.id]);
@@ -65,7 +76,7 @@ export default function AddJobModal() {
 
   return (
     <>
-      <div onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
+      <div onClick={close} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', zIndex: 50 }} />
       <div role="dialog" aria-modal="true" aria-labelledby="add-job-title" style={{
         position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
         width: 520, maxWidth: 'calc(100vw - 24px)', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', background: t.card, borderRadius: 16, padding: 28, zIndex: 60,
@@ -73,7 +84,7 @@ export default function AddJobModal() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
           <h2 id="add-job-title" style={{ fontSize: 18, fontWeight: 800, color: t.p, margin: 0, letterSpacing: '-0.4px' }}>Add Job Application</h2>
-          <button aria-label="Close add job" onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${t.d}`, background: 'transparent', cursor: 'pointer', color: t.m, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
+          <button aria-label="Close add job" onClick={close} style={{ width: 28, height: 28, borderRadius: 6, border: `1px solid ${t.d}`, background: 'transparent', cursor: 'pointer', color: t.m, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>✕</button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
@@ -104,7 +115,7 @@ export default function AddJobModal() {
           </div>
           <div>
             <label htmlFor="add-job-deadline" style={labelStyle}>Deadline</label>
-            <input id="add-job-deadline" type="date" style={inputStyle} value={newJob.deadline} onChange={set('deadline')} />
+            <input ref={deadlineField} id="add-job-deadline" type="date" style={inputStyle} defaultValue={newJob.deadline} />
           </div>
         </div>
 
@@ -113,7 +124,7 @@ export default function AddJobModal() {
           <textarea aria-label="Job posting description" maxLength={60000} style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }} value={newJob.description} onChange={set('description')} placeholder="Paste the posting now so you can keep it after the source closes." />
         </div>
         {duplicates.length > 0 && <div role="alert" style={{ marginBottom: 18, padding: 14, borderRadius: 9, background: '#fffbeb', color: '#92400e', fontSize: 13 }}>
-          A similar application already exists. {duplicates.map(app => <button key={app.id} onClick={() => { dispatch({ type: 'CLOSE_ADD_JOB' }); dispatch({ type: 'OPEN_DETAIL', id: app.id }); }}>{app.company} — {app.role}</button>)}
+          A similar application already exists. {duplicates.map(app => <button key={app.id} onClick={() => { close(); void dispatch({ type: 'OPEN_DETAIL', id: app.id }); }}>{app.company} — {app.role}</button>)}
           <label style={{ display: 'block', marginTop: 10 }}><input type="checkbox" checked={duplicateConfirmed === duplicateKey} onChange={e => setDuplicateConfirmed(e.target.checked ? duplicateKey : '')} /> This is a separate opportunity; create it anyway.</label>
         </div>}
         <div style={{ marginBottom: 22 }}>
@@ -122,7 +133,7 @@ export default function AddJobModal() {
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button onClick={() => dispatch({ type: 'CLOSE_ADD_JOB' })} style={{ padding: '10px 20px', background: 'transparent', border: `1px solid ${t.d}`, borderRadius: 9, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: t.s, fontFamily: 'inherit' }}>
+          <button onClick={close} style={{ padding: '10px 20px', background: 'transparent', border: `1px solid ${t.d}`, borderRadius: 9, fontSize: 14, fontWeight: 600, cursor: 'pointer', color: t.s, fontFamily: 'inherit' }}>
             Cancel
           </button>
           <button

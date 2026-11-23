@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
-import type { Application } from '@/lib/types';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Application, JobInterview } from '@/lib/types';
 const mocks = vi.hoisted(() => ({ useStore: vi.fn(), dispatch: vi.fn() }));
 vi.mock('@/lib/store', () => ({ useStore: mocks.useStore }));
 vi.mock('@/lib/useLocalDay', () => ({
@@ -21,6 +22,22 @@ const app: Application = {
   postingNote: '',
   nextAction: 'Follow up',
   nextActionDue: '2026-11-02',
+};
+const interview: JobInterview = {
+  id: 'interview',
+  applicationId: app.id,
+  ownerId: 'owner',
+  title: 'Portfolio interview',
+  startsAt: '2026-11-02T20:00:00Z',
+  endsAt: '2026-11-02T20:30:00Z',
+  localStart: '2026-11-03T09:00',
+  localEnd: '2026-11-03T09:30',
+  utcOffsetSeconds: 46800,
+  timeZone: 'Pacific/Auckland',
+  status: 'scheduled',
+  revision: 0,
+  createdAt: '2026-11-01T22:00:00Z',
+  updatedAt: '2026-11-01T22:00:00Z',
 };
 beforeEach(() => {
   mocks.dispatch.mockReset().mockResolvedValue(true);
@@ -80,5 +97,70 @@ describe('Today view', () => {
     fireEvent.click(within(card).getByRole('button', { name: 'Save date' }));
     await screen.findByText('Date change is queued. Keep this page open and use Retry save above.');
     expect(screen.queryByText('Date saved.')).not.toBeInTheDocument();
+  });
+  it.each([
+    ['completed', 'Interview saved. Update any imported calendar copy separately.'],
+    ['cancelled', 'This interview changed elsewhere. Today now shows the latest saved interviews.'],
+  ] as const)('completes only the displayed revision when the saved interview is %s', async (status, notice) => {
+    const savedInterview = { ...interview, status, revision: 1 };
+    const row = {
+      id: interview.id,
+      application_id: app.id,
+      user_id: interview.ownerId,
+      title: interview.title,
+      starts_at: interview.startsAt,
+      ends_at: interview.endsAt,
+      time_zone: interview.timeZone,
+      local_start: interview.localStart,
+      local_end: interview.localEnd,
+      utc_offset_seconds: interview.utcOffsetSeconds,
+      status,
+      revision: 1,
+      created_at: interview.createdAt,
+      updated_at: interview.updatedAt,
+    };
+    const eq = vi.fn<(column: string, value: string | number) => unknown>();
+    const updateQuery = {
+      eq,
+      then: (resolve: (value: object) => void) => resolve({ error: null }),
+    };
+    eq.mockReturnValue(updateQuery);
+    const listQuery = {
+      eq: () => listQuery,
+      order: () => listQuery,
+      then: (resolve: (value: object) => void) => resolve({ data: [row], error: null }),
+    };
+    const update = vi.fn(() => updateQuery);
+    const client = { from: () => ({ update, select: () => listQuery }) };
+    const store = {
+      ...mocks.useStore(),
+      accountId: interview.ownerId,
+      interviews: [interview],
+      saveWorkspace: async (work: (client: SupabaseClient) => Promise<void>) => {
+        await work(client as unknown as SupabaseClient);
+        return true;
+      },
+    };
+    mocks.useStore.mockReturnValue(store);
+    const { rerender } = render(<Today />);
+    const today = screen.getByRole('region', { name: /^Today/ });
+    fireEvent.click(within(today).getByRole('button', { name: 'Mark interview complete' }));
+    await screen.findByText(notice);
+    expect(update).toHaveBeenCalledWith({ status: 'completed' });
+    expect(updateQuery.eq.mock.calls).toEqual([
+      ['id', interview.id],
+      ['application_id', app.id],
+      ['user_id', interview.ownerId],
+      ['revision', interview.revision],
+    ]);
+    expect(mocks.dispatch).toHaveBeenCalledWith({
+      type: 'SYNC_INTERVIEWS',
+      applicationId: app.id,
+      interviews: [savedInterview],
+    });
+    store.interviews = [savedInterview];
+    rerender(<Today />);
+    expect(screen.queryByRole('button', { name: 'Mark interview complete' })).not.toBeInTheDocument();
+    expect(screen.getByText(notice)).toBeInTheDocument();
   });
 });

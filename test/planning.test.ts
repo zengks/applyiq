@@ -43,6 +43,46 @@ const interview: JobInterview = {
   notes: 'Sensitive prep\nsecond line',
   location: 'Room 2; north, floor 3',
 };
+const auckland: JobInterview = {
+  ...interview,
+  id: 'auckland',
+  timeZone: 'Pacific/Auckland',
+  localStart: '2026-11-24T09:00',
+  localEnd: '2026-11-24T09:30',
+  startsAt: '2026-11-23T20:00:00Z',
+  endsAt: '2026-11-23T20:30:00Z',
+  utcOffsetSeconds: 46800,
+};
+const honolulu: JobInterview = {
+  ...interview,
+  id: 'honolulu',
+  timeZone: 'Pacific/Honolulu',
+  localStart: '2026-11-22T23:45',
+  localEnd: '2026-11-22T23:55',
+  startsAt: '2026-11-23T09:45:00Z',
+  endsAt: '2026-11-23T09:55:00Z',
+  utcOffsetSeconds: -36000,
+};
+const beforeLocalMidnight: JobInterview = {
+  ...interview,
+  id: 'before-midnight',
+  timeZone: 'UTC',
+  localStart: '2026-11-23T06:30',
+  localEnd: '2026-11-23T06:45',
+  startsAt: '2026-11-23T06:30:00Z',
+  endsAt: '2026-11-23T06:45:00Z',
+  utcOffsetSeconds: 0,
+};
+const afterUtcMidnight: JobInterview = {
+  ...interview,
+  id: 'after-midnight',
+  timeZone: 'UTC',
+  localStart: '2026-11-24T02:00',
+  localEnd: '2026-11-24T02:30',
+  startsAt: '2026-11-24T02:00:00Z',
+  endsAt: '2026-11-24T02:30:00Z',
+  utcOffsetSeconds: 0,
+};
 const parsed = (text: string) =>
   new ICAL.Component(ICAL.parse(text))
     .getAllSubcomponents('vevent')
@@ -80,7 +120,9 @@ describe('calendar interoperability and privacy', () => {
     expect(cancelled.sequence).toBe(3);
   });
   it('exports independent dated actions and deadlines as exclusive-end all-day events', () => {
-    const rows = parsed(serializeCalendar(agendaCalendarEvents([job], [interview], '2026-11-02')));
+    const rows = parsed(
+      serializeCalendar(agendaCalendarEvents([job], [interview], '2026-11-02', 'America/Vancouver')),
+    );
     expect(rows).toHaveLength(3);
     const action = rows.find((row) => row.uid === 'job:action@applyiq')!;
     expect(action.startDate.isDate).toBe(true);
@@ -91,8 +133,26 @@ describe('calendar interoperability and privacy', () => {
         [{ ...job, nextActionDone: true, status: 'applied' }],
         [{ ...interview, status: 'cancelled' }],
         '2026-11-02',
+        'America/Vancouver',
       ),
     ).toEqual([]);
+  });
+  it('exports appointments that end today in the viewer time zone while retaining UTC instants', () => {
+    const rows = parsed(
+      serializeCalendar(
+        agendaCalendarEvents(
+          [job],
+          [auckland, honolulu, beforeLocalMidnight, afterUtcMidnight],
+          '2026-11-23',
+          'America/Vancouver',
+        ),
+      ),
+    ).filter((row) => !row.startDate.isDate);
+    expect(rows.map((row) => [row.uid, row.startDate.toJSDate().toISOString()])).toEqual([
+      ['urn:uuid:auckland', '2026-11-23T20:00:00.000Z'],
+      ['urn:uuid:honolulu', '2026-11-23T09:45:00.000Z'],
+      ['urn:uuid:after-midnight', '2026-11-24T02:00:00.000Z'],
+    ]);
   });
   it('escapes injected newlines as text rather than calendar properties', () => {
     const text = serializeCalendar([
@@ -119,7 +179,7 @@ describe('calendar interoperability and privacy', () => {
   });
 });
 describe('planning inputs and agenda', () => {
-  it('groups saved interview wall dates and excludes cancellations and orphaned jobs', () => {
+  it('groups interviews and excludes cancellations and orphaned jobs', () => {
     const rows = buildAgenda([job], '2026-11-05', [
       interview,
       { ...interview, id: 'cancelled', status: 'cancelled' },
@@ -133,6 +193,22 @@ describe('planning inputs and agenda', () => {
       ['done', 'completed'],
     ]);
     expect(interviewLabel(interview)).toContain('10:00');
+  });
+  it('groups both sides of the date line by the viewer day and sorts by actual start time', () => {
+    const rows = buildAgenda(
+      [job],
+      '2026-11-23',
+      [auckland, honolulu, beforeLocalMidnight, afterUtcMidnight],
+      'America/Vancouver',
+    );
+    const timedRows = rows.filter((row) => row.kind === 'interview');
+    expect(timedRows.map(({ id, group, date }) => [id, group, date])).toEqual([
+      ['before-midnight', 'overdue', '2026-11-22'],
+      ['honolulu', 'today', '2026-11-23'],
+      ['auckland', 'today', '2026-11-23'],
+      ['after-midnight', 'today', '2026-11-23'],
+    ]);
+    expect(interviewLabel(auckland)).toContain('2026-11-24');
   });
   it('rejects unsafe links, invalid email, and invalid meeting intervals', () => {
     expect(safePlanningUrl('javascript:alert(1)')).toBeNull();

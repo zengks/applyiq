@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { authStyles as s } from '@/components/auth/authStyles';
+import { SIGNUP_CONFIRMATION_PATH } from '@/lib/authRedirect';
 
 export default function RegisterPage() {
   const [fullName, setFullName] = useState('');
@@ -23,7 +24,7 @@ export default function RegisterPage() {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=/dashboard`,
+        emailRedirectTo: `${window.location.origin}${SIGNUP_CONFIRMATION_PATH}`,
       },
     });
     if (error) {

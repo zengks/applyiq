@@ -18,12 +18,23 @@ export default function FollowUpFields({
   onEdit: () => void;
 }) {
   const [kind, setKind] = useState(values.kind as FollowUpKind);
-  const [contactId, setContactId] = useState(values.contact_id);
+  const [recipientOverride, setRecipientOverride] = useState<string | null>(
+    values.contact_id || (values.interview_id ? '' : null),
+  );
   const [interviewId, setInterviewId] = useState(values.interview_id);
+  const [reviewDraft, setReviewDraft] = useState(false);
   const subject = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLTextAreaElement>(null);
-  const contact = contacts.find((item) => item.id === contactId);
   const interview = interviews.find((item) => item.id === interviewId);
+  const suggestedContact = contacts.find(
+    (item) => item.id === interview?.contactId && !item.archived,
+  );
+  const contactId = recipientOverride ?? suggestedContact?.id ?? '';
+  const contact = contacts.find((item) => item.id === contactId);
+
+  function markForReview() {
+    if (subject.current?.value.trim() || body.current?.value.trim()) setReviewDraft(true);
+  }
 
   function fillTemplate() {
     if (!subject.current || !body.current) return;
@@ -35,6 +46,7 @@ export default function FollowUpFields({
     const template = followUpTemplate(kind, application, contact, interview, sender);
     subject.current.value = template.subject;
     body.current.value = template.body;
+    setReviewDraft(false);
     onEdit();
     subject.current.focus();
   }
@@ -57,14 +69,8 @@ export default function FollowUpFields({
         name="interview_id"
         value={interviewId}
         onChange={(event) => {
-          const selected = interviews.find((item) => item.id === event.target.value);
           setInterviewId(event.target.value);
-          if (
-            !contactId &&
-            selected?.contactId &&
-            contacts.some((item) => item.id === selected.contactId && !item.archived)
-          )
-            setContactId(selected.contactId);
+          markForReview();
         }}
       >
         <option value="">No interview selected</option>
@@ -81,7 +87,10 @@ export default function FollowUpFields({
         id="jp-draft-contact"
         name="contact_id"
         value={contactId}
-        onChange={(event) => setContactId(event.target.value)}
+        onChange={(event) => {
+          setRecipientOverride(event.target.value);
+          markForReview();
+        }}
       >
         <option value="">No contact selected</option>
         {contacts
@@ -94,6 +103,11 @@ export default function FollowUpFields({
           ))}
       </select>
       {contact?.email && <p className="jw-muted">Saved email: {contact.email}</p>}
+      {reviewDraft && (
+        <p role="status">
+          The recipient or interview changed. Review the subject and message before saving.
+        </p>
+      )}
       <p className="jw-muted">
         Fill a template or write your own. Review the recipient and text before copying a saved
         draft to your email app.

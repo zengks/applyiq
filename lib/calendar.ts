@@ -1,6 +1,6 @@
 import type { Application, JobInterview } from './types';
 import { safePlanningUrl } from './planning';
-import { buildAgenda, validCalendarDate } from './today';
+import { buildAgenda, calendarDateFormatter, validCalendarDate } from './today';
 
 export interface CalendarEvent {
   uid: string;
@@ -131,14 +131,16 @@ export function agendaCalendarEvents(
   jobs: Application[],
   interviews: JobInterview[],
   today: string,
+  timeZone: string,
 ): CalendarEvent[] {
   const byId = new Map(jobs.map((job) => [job.id, job]));
+  const dateInViewerZone = calendarDateFormatter(timeZone);
   return [
     ...interviews
       .filter(
         (item) =>
           item.status === 'scheduled' &&
-          item.localEnd.slice(0, 10) >= today &&
+          (dateInViewerZone(item.endsAt) ?? '') >= today &&
           byId.has(item.applicationId),
       )
       .map((item) => interviewCalendarEvent(item, byId.get(item.applicationId)!)),

@@ -32,6 +32,7 @@ export default function SaveAnalysisToWorkspace({
     setBusy(true);
     setMessage('');
     try {
+      let rejection = '';
       const saved = await saveWorkspace(async (client) => {
         if (target === 'new') {
           const auth = checked(await client.auth.getUser());
@@ -61,8 +62,11 @@ export default function SaveAnalysisToWorkspace({
             ? 'Résumé, analysis, and cover letter saved to the workspace.'
             : 'Analysis and cover letter saved. No résumé was supplied for this analysis.',
         );
+      }, (message) => {
+        rejection = message;
+        setMessage(message);
       });
-      if (!saved) setMessage('Materials are queued. Keep the page open and use Retry save above.');
+      if (!saved && !rejection) setMessage('Materials are queued. Keep the page open and use Retry save above.');
     } finally {
       setBusy(false);
     }

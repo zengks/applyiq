@@ -30,4 +30,23 @@ describe('save recovery', () => {
     expect(await Promise.all([one, two])).toEqual([true, true]);
     expect(events).toEqual([1, 2]);
   });
+
+  it('reports the saved-version limit without retrying it or blocking later writes', async () => {
+    const statuses: SyncStatus[] = [];
+    const queue = new PersistenceQueue(status => statuses.push(status));
+    const message = 'This workspace has reached its 200 saved-version limit';
+    const limitedSave = vi.fn().mockRejectedValue({ code: 'P0001', message });
+    const onRejected = vi.fn();
+    const otherSave = vi.fn().mockResolvedValue(undefined);
+
+    const limited = queue.enqueue(limitedSave, onRejected);
+    const other = queue.enqueue(otherSave);
+
+    expect(await Promise.all([limited, other])).toEqual([false, true]);
+    expect(onRejected).toHaveBeenCalledExactlyOnceWith(message);
+    await queue.retry();
+    expect(limitedSave).toHaveBeenCalledTimes(1);
+    expect(otherSave).toHaveBeenCalledTimes(1);
+    expect(statuses.at(-1)).toEqual({ pending: 0, saving: false, error: '' });
+  });
 });

@@ -31,11 +31,31 @@ export function validCalendarDate(value: string | null | undefined): value is st
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
+export function calendarDateFormatter(timeZone: string) {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    calendar: 'iso8601',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return (instant: string) => {
+    const date = new Date(instant);
+    if (!Number.isFinite(date.getTime())) return null;
+    const parts = formatter.formatToParts(date);
+    const year = parts.find((part) => part.type === 'year')!.value.padStart(4, '0');
+    const month = parts.find((part) => part.type === 'month')!.value;
+    const day = parts.find((part) => part.type === 'day')!.value;
+    return `${year}-${month}-${day}`;
+  };
+}
+
 /** Calendar strings stay date-only: midnight UTC must not shift a deadline. */
 export function buildAgenda(
   applications: Application[],
   today: string,
   interviews: JobInterview[] = [],
+  timeZone = 'UTC',
 ): AgendaItem[] {
   if (!validCalendarDate(today)) throw new Error('Invalid agenda date');
   const items: AgendaItem[] = [];
@@ -72,10 +92,11 @@ export function buildAgenda(
     }
   }
   const jobs = new Map(applications.map((job) => [job.id, job]));
+  const dateInViewerZone = calendarDateFormatter(timeZone);
   for (const interview of interviews) {
     const application = jobs.get(interview.applicationId);
     if (!application || interview.status === 'cancelled') continue;
-    const date = interview.localStart.slice(0, 10);
+    const date = dateInViewerZone(interview.startsAt);
     items.push({
       id: interview.id,
       kind: 'interview',
