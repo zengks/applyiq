@@ -130,6 +130,8 @@ Use an isolated Supabase Auth project and a protected Vercel preview that points
 
 Follow the signup and reset retest above. Verify both messages in the private inbox and confirm the links work on the same protected preview. Record the preview commit and observed results without including the inbox address, link URLs, tokens, or credentials. Mailgun's drop-message test mode discards mail and cannot prove inbox delivery. [Mailgun sending options](https://documentation.mailgun.com/docs/mailgun/user-manual/sending-messages/pass-sending-options)
 
+The isolated `ApplyIQ QA` Free Supabase project was provisioned with all eight tracked migrations and an empty Auth database. The [isolated protected preview](https://applyiq-mailgun-bx0sxfos8-zengksoutlookcoms-projects.vercel.app) built commit `aa6e100` in a separate Vercel custom environment. Anonymous requests reached Vercel Authentication. The isolated Auth project uses this exact preview origin and its signup and reset callbacks. Mailgun recipient verification, SMTP setup, and live inbox tests remain pending.
+
 ## Interview scheduling and calendar exports
 
 Use `scripts/verify-planning-schema.sql` only in an isolated schema test database with the scheduling and follow-up draft migrations applied. Its fixture transaction rolls back. It covers row ownership, same-job references, stale writes, time-zone rules, and cascading job deletion.
